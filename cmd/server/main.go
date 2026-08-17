@@ -56,7 +56,7 @@ func main() {
 
 	// 3. Initialize Repositories
 	userRepo := sqlite.NewUserRepository(db)
-	snippetRepo := sqlite.NewSnippetRepository(db)
+	snippetRepo := sqlite.NewSnippetRepository(db, cfg.JWTSecret)
 
 	// 4. Initialize Security Managers
 	jwtManager := security.NewJWTManager(cfg.JWTSecret, cfg.JWTExpiry)

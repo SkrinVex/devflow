@@ -10,14 +10,39 @@ import (
 	"time"
 
 	"devflow/internal/domain"
+	"devflow/internal/security"
+
+	"github.com/google/uuid"
 )
 
 type SnippetRepository struct {
-	db *DB
+	db        *DB
+	secretKey []byte
 }
 
-func NewSnippetRepository(db *DB) *SnippetRepository {
-	return &SnippetRepository{db: db}
+func NewSnippetRepository(db *DB, secretKey []byte) *SnippetRepository {
+	return &SnippetRepository{
+		db:        db,
+		secretKey: secretKey,
+	}
+}
+
+func (r *SnippetRepository) encryptIfSecret(content string, sType domain.SnippetType) string {
+	if sType == domain.SnippetTypeSecret && len(r.secretKey) >= 32 {
+		if encrypted, err := security.EncryptAESGCM(content, r.secretKey); err == nil {
+			return encrypted
+		}
+	}
+	return content
+}
+
+func (r *SnippetRepository) decryptIfSecret(content string, sType domain.SnippetType) string {
+	if sType == domain.SnippetTypeSecret && len(r.secretKey) >= 32 {
+		if decrypted, err := security.DecryptAESGCM(content, r.secretKey); err == nil {
+			return decrypted
+		}
+	}
+	return content
 }
 
 func (r *SnippetRepository) Create(ctx context.Context, s *domain.Snippet) error {
@@ -27,8 +52,14 @@ func (r *SnippetRepository) Create(ctx context.Context, s *domain.Snippet) error
 	}
 	defer tx.Rollback()
 
+	if s.ID == "" {
+		s.ID = uuid.New().String()
+	}
+
 	now := time.Now()
-	s.CreatedAt = now
+	if s.CreatedAt.IsZero() {
+		s.CreatedAt = now
+	}
 	s.UpdatedAt = now
 
 	varsJSON, err := json.Marshal(s.Variables)
@@ -49,6 +80,8 @@ func (r *SnippetRepository) Create(ctx context.Context, s *domain.Snippet) error
 		isArch = 1
 	}
 
+	contentToStore := r.encryptIfSecret(s.Content, s.Type)
+
 	query := `
 		INSERT INTO snippets (id, user_id, title, content, type, language, variables, is_pinned, is_favorite, is_archived, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -57,7 +90,7 @@ func (r *SnippetRepository) Create(ctx context.Context, s *domain.Snippet) error
 		s.ID,
 		s.UserID,
 		s.Title,
-		s.Content,
+		contentToStore,
 		string(s.Type),
 		s.Language,
 		string(varsJSON),
@@ -114,6 +147,7 @@ func (r *SnippetRepository) GetByID(ctx context.Context, id, userID string) (*do
 	s.IsPinned = isPinned == 1
 	s.IsFavorite = isFav == 1
 	s.IsArchived = isArch == 1
+	s.Content = r.decryptIfSecret(s.Content, s.Type)
 
 	if err := json.Unmarshal([]byte(varsStr), &s.Variables); err != nil {
 		s.Variables = []string{}
@@ -154,6 +188,8 @@ func (r *SnippetRepository) Update(ctx context.Context, s *domain.Snippet) error
 		isArch = 1
 	}
 
+	contentToStore := r.encryptIfSecret(s.Content, s.Type)
+
 	query := `
 		UPDATE snippets
 		SET title = ?, content = ?, type = ?, language = ?, variables = ?, is_pinned = ?, is_favorite = ?, is_archived = ?, updated_at = ?
@@ -161,7 +197,7 @@ func (r *SnippetRepository) Update(ctx context.Context, s *domain.Snippet) error
 	`
 	res, err := tx.ExecContext(ctx, query,
 		s.Title,
-		s.Content,
+		contentToStore,
 		string(s.Type),
 		s.Language,
 		string(varsJSON),
@@ -250,32 +286,28 @@ func (r *SnippetRepository) List(ctx context.Context, filter domain.SnippetFilte
 	}
 
 	if filter.Tag != "" {
-		whereClauses = append(whereClauses, `s.id IN (
-			SELECT st.snippet_id FROM snippet_tags st
-			JOIN tags t ON st.tag_id = t.id
-			WHERE t.user_id = ? AND LOWER(t.name) = LOWER(?)
-		)`)
-		args = append(args, filter.UserID, filter.Tag)
+		whereClauses = append(whereClauses, "s.id IN (SELECT st.snippet_id FROM snippet_tags st JOIN tags t ON st.tag_id = t.id WHERE t.name = ? AND t.user_id = ?)")
+		args = append(args, filter.Tag, filter.UserID)
 	}
 
 	if filter.Query != "" {
-		likePattern := "%" + strings.ToLower(filter.Query) + "%"
-		whereClauses = append(whereClauses, "(LOWER(s.title) LIKE ? OR LOWER(s.content) LIKE ?)")
-		args = append(args, likePattern, likePattern)
+		searchPattern := "%" + filter.Query + "%"
+		whereClauses = append(whereClauses, "(s.title LIKE ? OR s.content LIKE ? OR s.id IN (SELECT st.snippet_id FROM snippet_tags st JOIN tags t ON st.tag_id = t.id WHERE t.name LIKE ? AND t.user_id = ?))")
+		args = append(args, searchPattern, searchPattern, searchPattern, filter.UserID)
 	}
 
 	whereSQL := strings.Join(whereClauses, " AND ")
 
 	// Count total
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM snippets s WHERE %s", whereSQL)
+	countQuery := fmt.Sprintf("SELECT COUNT(DISTINCT s.id) FROM snippets s WHERE %s", whereSQL)
 	var total int64
 	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("failed to count snippets: %w", err)
 	}
 
 	// Fetch page
 	limit := filter.Limit
-	if limit <= 0 || limit > 100 {
+	if limit <= 0 {
 		limit = 50
 	}
 	offset := filter.Offset
@@ -283,24 +315,22 @@ func (r *SnippetRepository) List(ctx context.Context, filter domain.SnippetFilte
 		offset = 0
 	}
 
-	selectQuery := fmt.Sprintf(`
-		SELECT s.id, s.user_id, s.title, s.content, s.type, s.language, s.variables, s.is_pinned, s.is_favorite, s.is_archived, s.created_at, s.updated_at
+	query := fmt.Sprintf(`
+		SELECT DISTINCT s.id, s.user_id, s.title, s.content, s.type, s.language, s.variables, s.is_pinned, s.is_favorite, s.is_archived, s.created_at, s.updated_at
 		FROM snippets s
 		WHERE %s
 		ORDER BY s.is_pinned DESC, s.created_at DESC
 		LIMIT ? OFFSET ?
 	`, whereSQL)
 
-	selectArgs := append(args, limit, offset)
-
-	rows, err := r.db.QueryContext(ctx, selectQuery, selectArgs...)
+	fetchArgs := append(args, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, fetchArgs...)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("failed to query snippets: %w", err)
 	}
 	defer rows.Close()
 
 	var snippets []domain.Snippet
-	var snippetIDs []string
 	for rows.Next() {
 		var s domain.Snippet
 		var sType, varsStr string
@@ -328,45 +358,55 @@ func (r *SnippetRepository) List(ctx context.Context, filter domain.SnippetFilte
 		s.IsPinned = isPinned == 1
 		s.IsFavorite = isFav == 1
 		s.IsArchived = isArch == 1
+		s.Content = r.decryptIfSecret(s.Content, s.Type)
 
 		if err := json.Unmarshal([]byte(varsStr), &s.Variables); err != nil {
 			s.Variables = []string{}
 		}
 
-		snippets = append(snippets, s)
-		snippetIDs = append(snippetIDs, s.ID)
-	}
-
-	// Fetch tags for all snippets in batch
-	if len(snippetIDs) > 0 {
-		tagMap, err := r.getTagsForSnippets(ctx, snippetIDs)
-		if err == nil {
-			for i := range snippets {
-				snippets[i].Tags = tagMap[snippets[i].ID]
-				if snippets[i].Tags == nil {
-					snippets[i].Tags = []string{}
-				}
-			}
+		tags, err := r.getSnippetTags(ctx, s.ID)
+		if err != nil {
+			return nil, 0, err
 		}
+		s.Tags = tags
+
+		snippets = append(snippets, s)
 	}
 
 	return snippets, total, nil
+}
+
+func (r *SnippetRepository) TogglePin(ctx context.Context, id, userID string) (bool, error) {
+	s, err := r.GetByID(ctx, id, userID)
+	if err != nil {
+		return false, err
+	}
+	s.IsPinned = !s.IsPinned
+	return s.IsPinned, r.Update(ctx, s)
+}
+
+func (r *SnippetRepository) ToggleFavorite(ctx context.Context, id, userID string) (bool, error) {
+	s, err := r.GetByID(ctx, id, userID)
+	if err != nil {
+		return false, err
+	}
+	s.IsFavorite = !s.IsFavorite
+	return s.IsFavorite, r.Update(ctx, s)
 }
 
 func (r *SnippetRepository) GetAllUserTags(ctx context.Context, userID string) ([]domain.TagCount, error) {
 	query := `
 		SELECT t.name, COUNT(st.snippet_id) as count
 		FROM tags t
-		LEFT JOIN snippet_tags st ON t.id = st.tag_id
-		LEFT JOIN snippets s ON st.snippet_id = s.id
-		WHERE t.user_id = ? AND (s.is_archived = 0 OR s.is_archived IS NULL)
+		JOIN snippet_tags st ON t.id = st.tag_id
+		JOIN snippets s ON st.snippet_id = s.id
+		WHERE t.user_id = ? AND s.is_archived = 0
 		GROUP BY t.id, t.name
-		HAVING count > 0
 		ORDER BY count DESC, t.name ASC
 	`
 	rows, err := r.db.QueryContext(ctx, query, userID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query tags: %w", err)
 	}
 	defer rows.Close()
 
@@ -384,29 +424,29 @@ func (r *SnippetRepository) GetAllUserTags(ctx context.Context, userID string) (
 func (r *SnippetRepository) GetAllForExport(ctx context.Context, userID string) ([]domain.Snippet, error) {
 	filter := domain.SnippetFilter{
 		UserID: userID,
-		Limit:  10000,
+		Limit:  100000,
 	}
 	snippets, _, err := r.List(ctx, filter)
 	return snippets, err
 }
 
 func (r *SnippetRepository) ImportBatch(ctx context.Context, userID string, snippets []domain.Snippet) (int, error) {
-	imported := 0
+	count := 0
 	for _, s := range snippets {
 		s.UserID = userID
-		if s.Title == "" {
-			s.Title = "Imported Item"
+		if s.ID == "" {
+			s.ID = uuid.New().String()
 		}
 		if err := r.Create(ctx, &s); err == nil {
-			imported++
+			count++
 		}
 	}
-	return imported, nil
+	return count, nil
 }
 
 // Helpers
 func (r *SnippetRepository) syncTagsTx(ctx context.Context, tx *sql.Tx, snippetID, userID string, tags []string) error {
-	// Remove existing tag links for snippet
+	// Delete existing tag relations
 	_, err := tx.ExecContext(ctx, "DELETE FROM snippet_tags WHERE snippet_id = ?", snippetID)
 	if err != nil {
 		return err
@@ -418,31 +458,30 @@ func (r *SnippetRepository) syncTagsTx(ctx context.Context, tx *sql.Tx, snippetI
 			continue
 		}
 
-		// Ensure tag exists in tags table
-		_, err = tx.ExecContext(ctx, `
-			INSERT INTO tags (user_id, name) VALUES (?, ?)
-			ON CONFLICT(user_id, name) DO NOTHING
-		`, userID, tag)
-		if err != nil {
-			return err
-		}
-
-		// Get tag ID
+		// Ensure tag exists
 		var tagID int64
-		err = tx.QueryRowContext(ctx, "SELECT id FROM tags WHERE user_id = ? AND name = ?", userID, tag).Scan(&tagID)
+		err := tx.QueryRowContext(ctx, "SELECT id FROM tags WHERE user_id = ? AND name = ?", userID, tag).Scan(&tagID)
 		if err != nil {
-			return err
+			if errors.Is(err, sql.ErrNoRows) {
+				res, err := tx.ExecContext(ctx, "INSERT INTO tags (user_id, name, created_at) VALUES (?, ?, ?)", userID, tag, time.Now())
+				if err != nil {
+					return err
+				}
+				tagID, err = res.LastInsertId()
+				if err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
 		}
 
-		// Link
-		_, err = tx.ExecContext(ctx, `
-			INSERT OR IGNORE INTO snippet_tags (snippet_id, tag_id) VALUES (?, ?)
-		`, snippetID, tagID)
+		// Insert relation
+		_, err = tx.ExecContext(ctx, "INSERT OR IGNORE INTO snippet_tags (snippet_id, tag_id) VALUES (?, ?)", snippetID, tagID)
 		if err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -469,42 +508,4 @@ func (r *SnippetRepository) getSnippetTags(ctx context.Context, snippetID string
 		tags = append(tags, tag)
 	}
 	return tags, nil
-}
-
-func (r *SnippetRepository) getTagsForSnippets(ctx context.Context, snippetIDs []string) (map[string][]string, error) {
-	if len(snippetIDs) == 0 {
-		return make(map[string][]string), nil
-	}
-
-	placeholders := make([]string, len(snippetIDs))
-	args := make([]interface{}, len(snippetIDs))
-	for i, id := range snippetIDs {
-		placeholders[i] = "?"
-		args[i] = id
-	}
-
-	query := fmt.Sprintf(`
-		SELECT st.snippet_id, t.name
-		FROM snippet_tags st
-		JOIN tags t ON st.tag_id = t.id
-		WHERE st.snippet_id IN (%s)
-		ORDER BY t.name ASC
-	`, strings.Join(placeholders, ","))
-
-	rows, err := r.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	result := make(map[string][]string)
-	for rows.Next() {
-		var snippetID, tagName string
-		if err := rows.Scan(&snippetID, &tagName); err != nil {
-			return nil, err
-		}
-		result[snippetID] = append(result[snippetID], tagName)
-	}
-
-	return result, nil
 }

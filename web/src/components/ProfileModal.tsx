@@ -16,7 +16,9 @@ import {
   Code,
   KeyRound,
   FileText,
-  Terminal
+  Terminal,
+  Smartphone,
+  CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useI18n } from '../context/LanguageContext';
@@ -60,7 +62,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   onRequestLogout,
 }) => {
   const { user } = useAuth();
-  const { t } = useI18n();
+  const { lang, t } = useI18n();
 
   const [copiedId, setCopiedId] = useState(false);
   const [role, setRole] = useState<string>(() => {
@@ -76,6 +78,26 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     secrets: 0,
     notes: 0,
   });
+
+  // PWA Install prompt state
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [installedSuccess, setInstalledSuccess] = useState(false);
+
+  useEffect(() => {
+    // Check if app is already running as installed standalone PWA
+    if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
+      setIsStandalone(true);
+    }
+
+    const handleBeforeInstall = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -109,6 +131,23 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const handleSelectColor = (hex: string) => {
     setAvatarColor(hex);
     localStorage.setItem('devflow_avatar_color', hex);
+  };
+
+  const handleInstallPWA = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setInstalledSuccess(true);
+        setDeferredPrompt(null);
+      }
+    } else {
+      // Fallback instruction for iOS / Android browsers where prompt cannot be triggered programmatically
+      alert(lang === 'ru'
+        ? 'Для установки на телефон:\n1. Нажмите меню браузера (три точки / Поделиться)\n2. Выберите «Установить приложение» или «На экран Домой».'
+        : 'To install on your phone:\n1. Tap browser menu (three dots / Share)\n2. Select "Install app" or "Add to Home Screen".'
+      );
+    }
   };
 
   const handleExport = async () => {
@@ -164,7 +203,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             background: 'var(--bg-subtle)',
             borderRadius: 'var(--radius-sm)',
             border: '1px solid var(--border)',
-            marginBottom: '16px',
+            marginBottom: '14px',
           }}>
             {/* Customizable Avatar */}
             <div style={{
@@ -218,7 +257,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             borderRadius: 'var(--radius-xs)',
             border: '1px solid var(--border)',
             fontSize: '12px',
-            marginBottom: '16px',
+            marginBottom: '14px',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ color: 'var(--text-dim)' }}>{t.userIdLabel}</span>
@@ -257,7 +296,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            marginBottom: '16px',
+            marginBottom: '14px',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {user.is_2fa_enabled ? (
@@ -284,8 +323,47 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             )}
           </div>
 
+          {/* PWA Mobile App Card */}
+          <div style={{
+            padding: '10px 12px',
+            borderRadius: 'var(--radius-xs)',
+            background: 'var(--bg-subtle)',
+            border: '1px solid var(--border)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '14px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Smartphone size={18} color="var(--text-muted)" />
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: '600' }}>
+                  {isStandalone || installedSuccess ? (lang === 'ru' ? 'PWA установлено' : 'PWA Installed') : (lang === 'ru' ? 'Приложение для телефона' : 'Install Mobile App')}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
+                  {isStandalone || installedSuccess ? (lang === 'ru' ? 'Работает в полноэкранном режиме' : 'Running in standalone mode') : (lang === 'ru' ? 'Установка на экран смартфона' : 'Add to home screen')}
+                </div>
+              </div>
+            </div>
+
+            {isStandalone || installedSuccess ? (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--success)', fontFamily: 'monospace' }}>
+                <CheckCircle2 size={13} /> OK
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ fontSize: '11px', padding: '3px 8px' }}
+                onClick={handleInstallPWA}
+              >
+                {lang === 'ru' ? 'Установить' : 'Install'}
+              </button>
+            )}
+          </div>
+
           {/* Developer Role & Avatar Color Customization */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '14px' }}>
             <div>
               <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11.5px', fontWeight: '500', color: 'var(--text-muted)', marginBottom: '5px' }}>
                 <Briefcase size={12} />
@@ -331,7 +409,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           </div>
 
           {/* Vault Mini-Snapshot */}
-          <div style={{ marginBottom: '16px' }}>
+          <div style={{ marginBottom: '14px' }}>
             <div style={{ fontSize: '11.5px', fontWeight: '500', color: 'var(--text-dim)', marginBottom: '6px' }}>
               {t.vaultSnapshot}
             </div>

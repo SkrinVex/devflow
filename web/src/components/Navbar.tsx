@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { 
   Search, 
-  ShieldCheck, 
   ShieldAlert, 
   Settings, 
   LogOut, 
@@ -41,18 +40,18 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header className="header-panel" style={{ position: 'sticky', top: 0, zIndex: 100 }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '10px 16px' }}>
+      <header className="header-panel">
+        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '8px 14px' }}>
           
           {/* Main Navbar Row */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
             
             {/* Brand Logo & Title */}
             <div 
-              style={{ display: 'flex', alignItems: 'center', gap: '9px', cursor: 'pointer', flexShrink: 0 }} 
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', flexShrink: 0 }} 
               onClick={() => onTypeChange('')}
             >
-              <Logo size={24} />
+              <Logo size={22} />
               <span style={{ fontSize: '15px', fontWeight: '700', letterSpacing: '-0.3px', color: 'var(--text)' }}>
                 devflow
               </span>
@@ -97,7 +96,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="btn btn-ghost"
                 onClick={toggleLang}
                 title={lang === 'ru' ? 'Switch to English' : 'Переключить на русский'}
-                style={{ fontSize: '11.5px', padding: '4px 7px', fontFamily: 'monospace', textTransform: 'uppercase', color: 'var(--text-muted)' }}
+                style={{ fontSize: '11px', padding: '4px 6px', fontFamily: 'monospace', textTransform: 'uppercase', color: 'var(--text-muted)' }}
               >
                 <Globe size={13} />
                 <span>{lang === 'ru' ? 'RU' : 'EN'}</span>
@@ -105,38 +104,41 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {isAuthenticated && user ? (
                 <>
-                  {/* Desktop Only 2FA & Settings Buttons */}
-                  <div className="desktop-actions" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <div 
-                      title={user.is_2fa_enabled ? '2FA Active' : '2FA Disabled'}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        padding: '3px 7px',
-                        borderRadius: 'var(--radius-xs)',
-                        fontSize: '11px',
-                        background: user.is_2fa_enabled ? 'var(--badge-note-bg)' : 'var(--badge-secret-bg)',
-                        color: user.is_2fa_enabled ? 'var(--badge-note-text)' : 'var(--badge-secret-text)',
-                        border: `1px solid ${user.is_2fa_enabled ? 'var(--badge-note-border)' : 'var(--badge-secret-border)'}`,
-                        cursor: 'pointer',
-                        fontFamily: 'monospace',
-                      }}
-                      onClick={() => onOpenSettings('security')}
-                    >
-                      {user.is_2fa_enabled ? <ShieldCheck size={12} /> : <ShieldAlert size={12} />}
-                      <span>{user.is_2fa_enabled ? t.twoFAActive : t.enable2FA}</span>
+                  {/* Desktop Only 2FA Setup Prompt (Only shown if 2FA is NOT enabled) */}
+                  {!user.is_2fa_enabled && (
+                    <div className="desktop-actions">
+                      <div 
+                        title="2FA Disabled - Click to Enable"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '3px 7px',
+                          borderRadius: 'var(--radius-xs)',
+                          fontSize: '11px',
+                          background: 'var(--badge-secret-bg)',
+                          color: 'var(--badge-secret-text)',
+                          border: '1px solid var(--badge-secret-border)',
+                          cursor: 'pointer',
+                          fontFamily: 'monospace',
+                        }}
+                        onClick={() => onOpenSettings('security')}
+                      >
+                        <ShieldAlert size={12} />
+                        <span>{t.enable2FA}</span>
+                      </div>
                     </div>
+                  )}
 
-                    <button
-                      className="btn btn-secondary btn-icon"
-                      onClick={() => onOpenSettings()}
-                      title={t.settingsTitle}
-                      style={{ width: '30px', height: '30px' }}
-                    >
-                      <Settings size={13} />
-                    </button>
-                  </div>
+                  {/* Desktop Settings Button */}
+                  <button
+                    className="btn btn-secondary btn-icon desktop-actions"
+                    onClick={() => onOpenSettings()}
+                    title={t.settingsTitle}
+                    style={{ width: '28px', height: '28px' }}
+                  >
+                    <Settings size={13} />
+                  </button>
 
                   {/* Profile Avatar Button (Always visible - opens Profile Hub) */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px', paddingLeft: '4px', borderLeft: '1px solid var(--border)' }}>

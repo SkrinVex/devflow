@@ -430,7 +430,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   fontSize: '11.5px',
                   marginBottom: '12px',
                 }}>
-                  http://localhost:1451/api/v1
+                  {window.location.origin}/api/v1
                 </div>
 
                 {onOpenApiDocs && (
