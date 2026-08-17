@@ -33,3 +33,10 @@ func New(dbPath string) (*DB, error) {
 
 	return &DB{db}, nil
 }
+
+// Checkpoint executes a WAL checkpoint with TRUNCATE mode, ensuring all transactions
+// written to devflow.db-wal are flushed into devflow.db and the WAL file is truncated.
+func (d *DB) Checkpoint() error {
+	_, err := d.Exec("PRAGMA wal_checkpoint(TRUNCATE);")
+	return err
+}

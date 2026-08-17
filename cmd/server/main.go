@@ -104,5 +104,14 @@ func main() {
 		log.Printf("⚠️ Server forced shutdown: %v", err)
 	}
 
+	// Flush SQLite WAL to disk
+	if err := db.Checkpoint(); err != nil {
+		log.Printf("⚠️ SQLite WAL checkpoint warning: %v", err)
+	} else {
+		log.Println("✅ SQLite WAL checkpoint completed (TRUNCATE)")
+	}
+
+	_ = db.Close()
+
 	log.Println("👋 DevFlow exited cleanly. Goodbye!")
 }

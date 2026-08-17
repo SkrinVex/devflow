@@ -13,7 +13,9 @@ RUN npm run build
 # ==========================================
 # Stage 2: Build Go Backend (Pure Go SQLite)
 # ==========================================
-FROM golang:1.24-alpine AS go-builder
+FROM golang:alpine AS go-builder
+
+ENV GOTOOLCHAIN=auto
 
 WORKDIR /app
 
@@ -42,7 +44,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 FROM alpine:3.21
 
 # Install runtime security packages
-RUN apk add --no-cache ca-certificates tzdata curl
+RUN apk add --no-cache ca-certificates tzdata curl sqlite
 
 # Create non-root user & data directory
 RUN addgroup -S devflow && adduser -S devflow -G devflow
