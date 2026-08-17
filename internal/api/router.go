@@ -77,9 +77,10 @@ func (r *Router) SetupRoutes() http.Handler {
 	mux.Handle("POST /api/v1/detect", authMiddleware(http.HandlerFunc(snippetHandler.Detect)))
 	mux.Handle("GET /api/v1/tags", authMiddleware(http.HandlerFunc(snippetHandler.GetTags)))
 
-	// Real-Time Multi-Device Sync Stream (SSE)
+	// Real-Time Multi-Device Sync Stream (WebSocket & SSE)
 	eventsHandler := handlers.NewEventsHandler()
-	mux.Handle("GET /api/v1/events", authMiddleware(http.HandlerFunc(eventsHandler.Stream)))
+	mux.Handle("/api/v1/ws", authMiddleware(http.HandlerFunc(eventsHandler.HandleWS)))
+	mux.Handle("GET /api/v1/ws", authMiddleware(http.HandlerFunc(eventsHandler.HandleWS)))
 
 	// Dynamic snippet sub-routes
 	mux.Handle("/api/v1/snippets/", authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {

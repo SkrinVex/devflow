@@ -116,41 +116,67 @@ const DevFlowApp: React.FC = () => {
     }
   }, [isAuthenticated, loadSnippets, loadTags]);
 
-  // Real-Time Multi-Device Sync Stream (SSE)
+  // Real-Time Multi-Device Sync via WebSocket
   useEffect(() => {
     if (!isAuthenticated) return;
 
     const token = localStorage.getItem('devflow_token');
     if (!token) return;
 
-    let eventSource: EventSource | null = null;
-    try {
-      eventSource = new EventSource(`/api/v1/events?token=${encodeURIComponent(token)}`);
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: any = null;
+    let isSubscribed = true;
 
-      eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data && data.type) {
-            // Silently refresh data on remote mutation
-            loadSnippets();
-            loadTags();
+    const connectWS = () => {
+      if (!isSubscribed) return;
+
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/api/v1/ws?token=${encodeURIComponent(token)}`;
+
+      try {
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          // Connected
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data && data.type && data.type !== 'connected') {
+              // Remote mutation detected (created, updated, deleted, pinned, favorited)
+              // Instantly reload local feed
+              loadSnippets();
+              loadTags();
+            }
+          } catch {
+            // ignore
           }
-        } catch {
-          // ignore
-        }
-      };
+        };
 
-      eventSource.onerror = () => {
-        // Automatic reconnection is handled by EventSource
-      };
-    } catch (e) {
-      console.warn('SSE connection failed', e);
-    }
+        ws.onclose = () => {
+          if (isSubscribed) {
+            // Auto reconnect after 2 seconds
+            reconnectTimeout = setTimeout(connectWS, 2000);
+          }
+        };
+
+        ws.onerror = () => {
+          ws?.close();
+        };
+      } catch (err) {
+        if (isSubscribed) {
+          reconnectTimeout = setTimeout(connectWS, 3000);
+        }
+      }
+    };
+
+    connectWS();
 
     return () => {
-      if (eventSource) {
-        eventSource.close();
-      }
+      isSubscribed = false;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (ws) ws.close();
     };
   }, [isAuthenticated, loadSnippets, loadTags]);
 

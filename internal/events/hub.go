@@ -2,21 +2,23 @@ package events
 
 import (
 	"encoding/json"
-	"fmt"
+	"log"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 type EventType string
 
 const (
-	EventSnippetCreated  EventType = "snippet:created"
-	EventSnippetUpdated  EventType = "snippet:updated"
-	EventSnippetDeleted  EventType = "snippet:deleted"
-	EventSnippetPinned   EventType = "snippet:pinned"
+	EventSnippetCreated   EventType = "snippet:created"
+	EventSnippetUpdated   EventType = "snippet:updated"
+	EventSnippetDeleted   EventType = "snippet:deleted"
+	EventSnippetPinned    EventType = "snippet:pinned"
 	EventSnippetFavorited EventType = "snippet:favorited"
-	EventVaultImported   EventType = "vault:imported"
+	EventVaultImported    EventType = "vault:imported"
 )
 
 type EventMessage struct {
@@ -27,8 +29,10 @@ type EventMessage struct {
 }
 
 type Client struct {
-	UserID string
-	Send   chan []byte
+	hub    *Hub
+	conn   *websocket.Conn
+	userID string
+	send   chan []byte
 }
 
 type Hub struct {
@@ -38,6 +42,15 @@ type Hub struct {
 
 var globalHub *Hub
 var once sync.Once
+
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		// Allow all origins for reverse proxies (Coolify, Traefik, Docker)
+		return true
+	},
+}
 
 func GetHub() *Hub {
 	once.Do(func() {
@@ -52,21 +65,25 @@ func (h *Hub) Register(c *Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	if _, ok := h.clients[c.UserID]; !ok {
-		h.clients[c.UserID] = make(map[*Client]bool)
+	if _, ok := h.clients[c.userID]; !ok {
+		h.clients[c.userID] = make(map[*Client]bool)
 	}
-	h.clients[c.UserID][c] = true
+	h.clients[c.userID][c] = true
+	log.Printf("🔌 Real-time client connected for user: %s (total active: %d)", c.userID, len(h.clients[c.userID]))
 }
 
 func (h *Hub) Unregister(c *Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	if userClients, ok := h.clients[c.UserID]; ok {
-		delete(userClients, c)
-		close(c.Send)
-		if len(userClients) == 0 {
-			delete(h.clients, c.UserID)
+	if userClients, ok := h.clients[c.userID]; ok {
+		if _, exists := userClients[c]; exists {
+			delete(userClients, c)
+			close(c.send)
+			if len(userClients) == 0 {
+				delete(h.clients, c.userID)
+			}
+			log.Printf("🔌 Real-time client disconnected for user: %s", c.userID)
 		}
 	}
 }
@@ -90,57 +107,105 @@ func (h *Hub) Publish(eventType EventType, userID string, payload interface{}) {
 	if userClients, ok := h.clients[userID]; ok {
 		for client := range userClients {
 			select {
-			case client.Send <- data:
+			case client.send <- data:
 			default:
-				// Channel is blocked or slow, skip
+				// If send buffer is full, unregister client
+				go h.Unregister(client)
 			}
 		}
 	}
 }
 
-// ServeSSE handles Server-Sent Events HTTP connections
-func (h *Hub) ServeSSE(w http.ResponseWriter, r *http.Request, userID string) {
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("X-Accel-Buffering", "no") // Disable Nginx/Coolify proxy buffering
-
-	client := &Client{
-		UserID: userID,
-		Send:   make(chan []byte, 32),
-	}
-
-	h.Register(client)
-	defer h.Unregister(client)
-
-	// Send initial connected event
-	fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"connected\",\"user_id\":\"%s\"}\n\n", userID)
-	flusher.Flush()
-
-	// Keep-alive ticker every 20 seconds
-	ticker := time.NewTicker(20 * time.Second)
-	defer ticker.Stop()
+// writePump pumps messages from the hub to the websocket connection.
+func (c *Client) writePump() {
+	ticker := time.NewTicker(25 * time.Second)
+	defer func() {
+		ticker.Stop()
+		c.conn.Close()
+	}()
 
 	for {
 		select {
-		case <-r.Context().Done():
-			return
-		case <-ticker.C:
-			fmt.Fprintf(w, ": keep-alive\n\n")
-			flusher.Flush()
-		case msg, ok := <-client.Send:
+		case message, ok := <-c.send:
+			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if !ok {
+				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
-			fmt.Fprintf(w, "data: %s\n\n", string(msg))
-			flusher.Flush()
+
+			w, err := c.conn.NextWriter(websocket.TextMessage)
+			if err != nil {
+				return
+			}
+			w.Write(message)
+
+			// Add queued messages to the current websocket message
+			n := len(c.send)
+			for i := 0; i < n; i++ {
+				w.Write([]byte{'\n'})
+				w.Write(<-c.send)
+			}
+
+			if err := w.Close(); err != nil {
+				return
+			}
+
+		case <-ticker.C:
+			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
 		}
 	}
+}
+
+// readPump pumps messages from the websocket connection to the hub.
+func (c *Client) readPump() {
+	defer func() {
+		c.hub.Unregister(c)
+		c.conn.Close()
+	}()
+
+	c.conn.SetReadLimit(4096)
+	c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	c.conn.SetPongHandler(func(string) error {
+		c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+
+	for {
+		_, _, err := c.conn.ReadMessage()
+		if err != nil {
+			break
+		}
+	}
+}
+
+// ServeWS upgrades the HTTP server connection to the WebSocket protocol.
+func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request, userID string) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("❌ Failed to upgrade websocket: %v", err)
+		return
+	}
+
+	client := &Client{
+		hub:    h,
+		conn:   conn,
+		userID: userID,
+		send:   make(chan []byte, 64),
+	}
+
+	h.Register(client)
+
+	// Send initial welcome sync confirmation message
+	initMsg, _ := json.Marshal(map[string]string{
+		"type":    "connected",
+		"status":  "realtime_active",
+		"user_id": userID,
+	})
+	client.send <- initMsg
+
+	go client.writePump()
+	go client.readPump()
 }

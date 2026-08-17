@@ -14,12 +14,12 @@ func NewEventsHandler() *EventsHandler {
 	return &EventsHandler{}
 }
 
-func (h *EventsHandler) Stream(w http.ResponseWriter, r *http.Request) {
+func (h *EventsHandler) HandleWS(w http.ResponseWriter, r *http.Request) {
 	claims, ok := r.Context().Value("user_claims").(*security.Claims)
 	if !ok {
 		RespondError(w, http.StatusUnauthorized, "Unauthorized", domain.ErrUnauthorized)
 		return
 	}
 
-	events.GetHub().ServeSSE(w, r, claims.UserID)
+	events.GetHub().ServeWS(w, r, claims.UserID)
 }
