@@ -11,7 +11,9 @@ import {
   Play, 
   Variable,
   FileCode,
-  CopyCheck
+  CopyCheck,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import type { Snippet, SnippetType } from '../types';
 import { useI18n } from '../context/LanguageContext';
@@ -44,6 +46,7 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
   const [copied, setCopied] = useState(false);
   const [copiedMd, setCopiedMd] = useState(false);
   const [isSecretRevealed, setIsSecretRevealed] = useState(false);
+  const [isLongExpanded, setIsLongExpanded] = useState(false);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(snippet.content);
@@ -90,6 +93,7 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
   const isSecret = snippet.type === 'secret';
   const hasVariables = snippet.type === 'prompt' && snippet.variables && snippet.variables.length > 0;
   const isCodeOrPrompt = snippet.type === 'code' || snippet.type === 'prompt';
+  const isLongContent = snippet.content.length > 450 || snippet.content.split('\n').length > 10;
 
   // Syntax highlighting
   const highlightedHTML = isCodeOrPrompt
@@ -196,11 +200,12 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
                 border: '1px solid var(--border)',
                 fontSize: '12.5px',
                 lineHeight: '1.5',
-                maxHeight: '240px',
-                overflowY: 'auto',
+                maxHeight: isLongContent && !isLongExpanded ? '200px' : 'none',
+                overflow: 'hidden',
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word',
                 color: 'var(--text)',
+                margin: 0,
               }}
             >
               {highlightedHTML ? (
@@ -209,6 +214,30 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
                 snippet.content
               )}
             </pre>
+
+            {isLongContent && (
+              <div style={{
+                position: isLongExpanded ? 'relative' : 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                background: isLongExpanded ? 'transparent' : 'linear-gradient(transparent, var(--bg-subtle) 70%)',
+                paddingTop: isLongExpanded ? '4px' : '24px',
+                display: 'flex',
+                justifyContent: 'center',
+              }}>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ fontSize: '11px', padding: '2px 8px', background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+                  onClick={() => setIsLongExpanded(!isLongExpanded)}
+                >
+                  {isLongExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                  <span>{isLongExpanded ? 'Свернуть' : 'Развернуть'}</span>
+                </button>
+              </div>
+            )}
+
             {isSecret && isSecretRevealed && (
               <button
                 className="btn btn-ghost"
@@ -238,30 +267,21 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
           {snippet.variables && snippet.variables.map((v) => (
             <span key={v} className="var-chip">
               <Variable size={10} />
-              {`{{${v}}}`}
+              <span>{`{{${v}}}`}</span>
             </span>
           ))}
         </div>
 
-        {/* 1-Click Copy & Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          {/* Copy as Markdown button for code/prompts */}
-          {isCodeOrPrompt && (
-            <button
-              className="btn btn-ghost"
-              style={{ fontSize: '11.5px', padding: '4px 8px' }}
-              onClick={handleCopyMarkdown}
-              title={t.copyAsMarkdown}
-            >
-              <FileCode size={13} />
-              <span>{copiedMd ? t.markdownCopied : 'MD'}</span>
-            </button>
-          )}
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-dim)', marginRight: '4px' }}>
+            {formatDate(snippet.created_at)}
+          </span>
 
           {hasVariables && (
             <button
               className="btn btn-secondary"
-              style={{ fontSize: '12px', padding: '5px 10px' }}
+              style={{ fontSize: '11.5px', padding: '3px 8px' }}
               onClick={() => onRunPrompt(snippet)}
             >
               <Play size={12} />
@@ -269,21 +289,27 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
             </button>
           )}
 
-          {/* Clean 1-Click Copy Button */}
+          {isCodeOrPrompt && (
+            <button
+              className={`btn btn-secondary ${copiedMd ? 'btn-copied' : ''}`}
+              style={{ fontSize: '11.5px', padding: '3px 8px' }}
+              onClick={handleCopyMarkdown}
+              title={t.copyAsMarkdown}
+            >
+              {copiedMd ? <Check size={12} color="var(--success)" /> : <FileCode size={12} />}
+              <span>{copiedMd ? t.markdownCopied : 'MD'}</span>
+            </button>
+          )}
+
           <button
-            className={`btn ${copied ? 'btn-copied' : 'btn-secondary'}`}
-            style={{ fontSize: '12px', padding: '5px 12px' }}
+            className={`btn btn-secondary ${copied ? 'btn-copied' : ''}`}
+            style={{ fontSize: '11.5px', padding: '3px 8px' }}
             onClick={handleCopy}
           >
-            {copied ? <Check size={13} /> : <Copy size={13} />}
+            {copied ? <Check size={12} color="var(--success)" /> : <Copy size={12} />}
             <span>{copied ? t.copied : t.copy}</span>
           </button>
         </div>
-      </div>
-
-      {/* Footer Timestamp */}
-      <div style={{ marginTop: '6px', fontSize: '10.5px', color: 'var(--text-dim)', textAlign: 'right', fontFamily: 'monospace' }}>
-        {formatDate(snippet.created_at)}
       </div>
     </div>
   );
