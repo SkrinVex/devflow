@@ -47,7 +47,7 @@
   --radius-md: 8px;
   --radius-lg: 12px;
 
-  --header-h: 49px;
+  --header-h: 52px;
 }
 
 * {
@@ -111,14 +111,15 @@ button:focus, button:focus-visible, .btn:focus, .btn:focus-visible, a:focus, a:f
   background: var(--border-focus);
 }
 
-/* Header & Panels */
+/* Fixed Header Panel (Never scrolls away) */
 .header-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
   z-index: 100;
-  width: 100%;
   padding-top: env(safe-area-inset-top, 0px);
 }
 
@@ -324,26 +325,31 @@ button:focus, button:focus-visible, .btn:focus, .btn:focus-visible, a:focus, a:f
   width: 100%;
 }
 
+/* Fixed Desktop Sidebar */
 .sidebar {
+  position: fixed;
+  top: var(--header-h);
+  bottom: 0;
+  left: 0;
   width: 240px;
-  flex-shrink: 0;
   background: var(--bg-surface);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  height: calc(100vh - var(--header-h));
-  position: sticky;
-  top: var(--header-h);
   overflow-y: auto;
-  padding-bottom: 24px;
+  z-index: 90;
+  padding: 16px 12px 40px 12px;
 }
 
+/* Main Content Area */
 .main-content {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: 100%;
+  min-height: 100vh;
+  margin-left: 240px;
+  padding-top: var(--header-h);
 }
 
 .content-wrapper {
@@ -413,7 +419,7 @@ button:focus, button:focus-visible, .btn:focus, .btn:focus-visible, a:focus, a:f
 /* Mobile Responsiveness (Android / iOS Native Feel) */
 @media (max-width: 768px) {
   :root {
-    --header-h: 88px;
+    --header-h: calc(92px + env(safe-area-inset-top, 0px));
   }
   .sidebar {
     display: none;
@@ -430,8 +436,12 @@ button:focus, button:focus-visible, .btn:focus, .btn:focus-visible, a:focus, a:f
   .mobile-tags-bar {
     display: flex;
   }
+  .main-content {
+    margin-left: 0;
+    padding-top: var(--header-h);
+  }
   .content-wrapper {
-    padding: 12px 10px 100px 10px;
+    padding: 12px 10px 110px 10px;
   }
   .mobile-bottom-bar {
     display: flex;
