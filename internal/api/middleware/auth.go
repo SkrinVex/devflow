@@ -34,6 +34,11 @@ func Auth(jwtManager *security.JWTManager) func(http.Handler) http.Handler {
 				}
 			}
 
+			// 3. Check query param ?token= (used for EventSource SSE)
+			if tokenString == "" {
+				tokenString = r.URL.Query().Get("token")
+			}
+
 			if tokenString == "" {
 				handlers.RespondError(w, http.StatusUnauthorized, "Authentication required", domain.ErrUnauthorized)
 				return

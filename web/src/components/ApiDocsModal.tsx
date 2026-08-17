@@ -10,7 +10,9 @@ import {
   Sparkles, 
   Lock, 
   FileCode, 
-  Database 
+  Database,
+  Bot,
+  Layers
 } from 'lucide-react';
 import { useI18n } from '../context/LanguageContext';
 
@@ -35,13 +37,16 @@ interface EndpointDoc {
 
 export const ApiDocsModal: React.FC<ApiDocsModalProps> = ({ isOpen, onClose }) => {
   const { t } = useI18n();
+  const [activeSection, setActiveSection] = useState<'rest' | 'mcp'>('rest');
   const [copiedToken, setCopiedToken] = useState(false);
+  const [copiedMcpConfig, setCopiedMcpConfig] = useState<string | null>(null);
   const [activeTabCode, setActiveTabCode] = useState<'curl' | 'js' | 'py'>('curl');
   const [selectedGroup, setSelectedGroup] = useState<'all' | 'auth' | 'snippets' | 'prompts' | 'vault'>('all');
   const [expandedEndpoint, setExpandedEndpoint] = useState<string>('create-snippet');
 
   const token = localStorage.getItem('devflow_token') || 'YOUR_JWT_BEARER_TOKEN';
-  const baseUrl = window.location.origin + '/api/v1';
+  const origin = window.location.origin;
+  const baseUrl = origin + '/api/v1';
 
   if (!isOpen) return null;
 
@@ -51,13 +56,45 @@ export const ApiDocsModal: React.FC<ApiDocsModalProps> = ({ isOpen, onClose }) =
     setTimeout(() => setCopiedToken(false), 2000);
   };
 
+  const handleCopyConfig = (configKey: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedMcpConfig(configKey);
+    setTimeout(() => setCopiedMcpConfig(null), 2000);
+  };
+
+  const claudeDesktopConfig = JSON.stringify({
+    mcpServers: {
+      devflow: {
+        command: "devflow",
+        args: ["mcp", `--url=${origin}`, `--token=${token}`],
+        env: {
+          DEVFLOW_URL: origin,
+          DEVFLOW_TOKEN: token
+        }
+      }
+    }
+  }, null, 2);
+
+  const cursorMcpConfig = JSON.stringify({
+    mcpServers: {
+      devflow: {
+        command: "devflow",
+        args: ["mcp"],
+        env: {
+          DEVFLOW_URL: origin,
+          DEVFLOW_TOKEN: token
+        }
+      }
+    }
+  }, null, 2);
+
   const endpoints: EndpointDoc[] = [
     {
       id: 'create-snippet',
       method: 'POST',
       path: '/snippets',
       group: 'snippets',
-      summary: 'Create a snippet, AI prompt, code or secret with auto-detection',
+      summary: 'Create a snippet, AI prompt, code or AES-256-GCM encrypted secret',
       authRequired: true,
       requestBody: JSON.stringify({
         content: "You are an expert in {{framework}}. Write an API router in {{language}} #prompt #ai",
@@ -189,45 +226,25 @@ res = requests.post("${baseUrl}/snippets/SNIPPET_ID/run", json={
 print(res.json()["data"]["rendered_content"])`,
     },
     {
-      id: 'auth-login',
-      method: 'POST',
-      path: '/auth/login',
-      group: 'auth',
-      summary: 'Authenticate with username/password to receive JWT token',
-      authRequired: false,
-      requestBody: JSON.stringify({
-        username: "lexa",
-        password: "SuperSecure#Password2026!"
-      }, null, 2),
-      responseBody: JSON.stringify({
-        success: true,
-        data: {
-          token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-          user: {
-            id: "225088e1-ce1a-4d76-8097-4001d84ea2fb",
-            username: "lexa",
-            email: "lexa@devflow.local",
-            is_2fa_enabled: false
-          }
-        }
-      }, null, 2),
-      curlExample: `curl -X POST "${baseUrl}/auth/login" \\
-  -H "Content-Type: application/json" \\
-  -d '{"username": "lexa", "password": "SuperSecure#Password2026!"}'`,
-      jsExample: `const res = await fetch("${baseUrl}/auth/login", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ username: "lexa", password: "SuperSecure#Password2026!" })
-});
-const data = await res.json();
-console.log("Token:", data.data.token);`,
-      pyExample: `import requests
+      id: 'sse-events',
+      method: 'GET',
+      path: '/events',
+      group: 'vault',
+      summary: 'Real-time multi-device Server-Sent Events (SSE) live sync stream',
+      authRequired: true,
+      responseBody: `data: {"type":"snippet:created","user_id":"...","payload":{...}}\n\n`,
+      curlExample: `curl -N "${baseUrl}/events?token=${token}"`,
+      jsExample: `const eventSource = new EventSource("${baseUrl}/events?token=${token}");
+eventSource.onmessage = (event) => {
+  const syncEvent = JSON.parse(event.data);
+  console.log("Real-time sync event:", syncEvent);
+};`,
+      pyExample: `import urllib.request
 
-res = requests.post("${baseUrl}/auth/login", json={
-    "username": "lexa", "password": "SuperSecure#Password2026!"
-})
-token = res.json()["data"]["token"]
-print("Token:", token)`,
+req = urllib.request.Request("${baseUrl}/events?token=${token}")
+with urllib.request.urlopen(req) as resp:
+    for line in resp:
+        print("Event:", line.decode("utf-8"))`,
     },
     {
       id: 'export-vault',
@@ -273,7 +290,7 @@ with open("devflow_backup.json", "w") as f:
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '680px' }}>
         
         {/* Header */}
         <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -286,11 +303,30 @@ with open("devflow_backup.json", "w") as f:
           </button>
         </div>
 
-        <div style={{ padding: '16px 18px', overflowY: 'auto', maxHeight: 'calc(85vh - 60px)' }}>
-          <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-            {t.apiDocsSubtitle}
-          </p>
+        {/* Section Switcher: REST API vs MCP */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '10px 18px 0 18px', gap: '8px', borderBottom: '1px solid var(--border)' }}>
+          <button
+            type="button"
+            className={`btn ${activeSection === 'rest' ? 'btn-secondary' : 'btn-ghost'}`}
+            style={{ fontSize: '12.5px', padding: '6px 8px', borderBottom: activeSection === 'rest' ? '2px solid var(--text)' : undefined }}
+            onClick={() => setActiveSection('rest')}
+          >
+            <Layers size={14} />
+            <span>{t.tabRestApi}</span>
+          </button>
+          <button
+            type="button"
+            className={`btn ${activeSection === 'mcp' ? 'btn-secondary' : 'btn-ghost'}`}
+            style={{ fontSize: '12.5px', padding: '6px 8px', borderBottom: activeSection === 'mcp' ? '2px solid var(--text)' : undefined }}
+            onClick={() => setActiveSection('mcp')}
+          >
+            <Bot size={14} />
+            <span>{t.tabMcp}</span>
+          </button>
+        </div>
 
+        <div style={{ padding: '16px 18px', overflowY: 'auto', maxHeight: 'calc(85vh - 100px)' }}>
+          
           {/* Quick Connection Info Card */}
           <div style={{
             padding: '12px 14px',
@@ -328,183 +364,262 @@ with open("devflow_backup.json", "w") as f:
             </div>
           </div>
 
-          {/* Filter Categories */}
-          <div style={{ display: 'flex', gap: '4px', marginBottom: '14px', flexWrap: 'wrap' }}>
-            <button
-              className={`tag-chip ${selectedGroup === 'all' ? 'active' : ''}`}
-              onClick={() => setSelectedGroup('all')}
-            >
-              All Endpoints
-            </button>
-            <button
-              className={`tag-chip ${selectedGroup === 'snippets' ? 'active' : ''}`}
-              onClick={() => setSelectedGroup('snippets')}
-            >
-              <FileCode size={11} /> {t.apiGroupSnippets}
-            </button>
-            <button
-              className={`tag-chip ${selectedGroup === 'prompts' ? 'active' : ''}`}
-              onClick={() => setSelectedGroup('prompts')}
-            >
-              <Sparkles size={11} /> {t.apiGroupPrompts}
-            </button>
-            <button
-              className={`tag-chip ${selectedGroup === 'auth' ? 'active' : ''}`}
-              onClick={() => setSelectedGroup('auth')}
-            >
-              <Lock size={11} /> {t.apiGroupAuth}
-            </button>
-            <button
-              className={`tag-chip ${selectedGroup === 'vault' ? 'active' : ''}`}
-              onClick={() => setSelectedGroup('vault')}
-            >
-              <Database size={11} /> {t.apiGroupVault}
-            </button>
-          </div>
+          {/* SECTION 1: REST API */}
+          {activeSection === 'rest' && (
+            <div>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
+                {t.apiDocsSubtitle}
+              </p>
 
-          {/* Endpoints Accordion List */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {filteredEndpoints.map((ep) => {
-              const isExpanded = expandedEndpoint === ep.id;
-              return (
-                <div
-                  key={ep.id}
-                  style={{
-                    background: 'var(--bg-surface)',
-                    borderRadius: 'var(--radius-xs)',
-                    border: '1px solid var(--border)',
-                    overflow: 'hidden',
-                  }}
+              {/* Filter Categories */}
+              <div style={{ display: 'flex', gap: '4px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                <button
+                  className={`tag-chip ${selectedGroup === 'all' ? 'active' : ''}`}
+                  onClick={() => setSelectedGroup('all')}
                 >
-                  {/* Endpoint Row Title */}
-                  <div
-                    onClick={() => setExpandedEndpoint(isExpanded ? '' : ep.id)}
-                    style={{
-                      padding: '10px 12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      cursor: 'pointer',
-                      background: isExpanded ? 'var(--bg-subtle)' : undefined,
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      <span className={`badge ${getMethodBadgeClass(ep.method)}`}>
-                        {ep.method}
-                      </span>
-                      <span style={{ fontFamily: 'monospace', fontSize: '13px', fontWeight: '600', color: 'var(--text)' }}>
-                        {ep.path}
-                      </span>
-                      <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
-                        — {ep.summary}
-                      </span>
-                    </div>
+                  All
+                </button>
+                <button
+                  className={`tag-chip ${selectedGroup === 'snippets' ? 'active' : ''}`}
+                  onClick={() => setSelectedGroup('snippets')}
+                >
+                  <FileCode size={11} /> {t.apiGroupSnippets}
+                </button>
+                <button
+                  className={`tag-chip ${selectedGroup === 'prompts' ? 'active' : ''}`}
+                  onClick={() => setSelectedGroup('prompts')}
+                >
+                  <Sparkles size={11} /> {t.apiGroupPrompts}
+                </button>
+                <button
+                  className={`tag-chip ${selectedGroup === 'auth' ? 'active' : ''}`}
+                  onClick={() => setSelectedGroup('auth')}
+                >
+                  <Lock size={11} /> {t.apiGroupAuth}
+                </button>
+                <button
+                  className={`tag-chip ${selectedGroup === 'vault' ? 'active' : ''}`}
+                  onClick={() => setSelectedGroup('vault')}
+                >
+                  <Database size={11} /> {t.apiGroupVault}
+                </button>
+              </div>
 
-                    <div style={{ color: 'var(--text-dim)' }}>
-                      {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-                    </div>
-                  </div>
-
-                  {/* Expanded Endpoint Documentation */}
-                  {isExpanded && (
-                    <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border)' }}>
-                      {/* Code Examples Tabs */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <div style={{ display: 'flex', gap: '4px' }}>
-                          <button
-                            className={`btn ${activeTabCode === 'curl' ? 'btn-secondary' : 'btn-ghost'}`}
-                            style={{ fontSize: '11px', padding: '2px 6px' }}
-                            onClick={() => setActiveTabCode('curl')}
-                          >
-                            {t.apiExampleCurl}
-                          </button>
-                          <button
-                            className={`btn ${activeTabCode === 'js' ? 'btn-secondary' : 'btn-ghost'}`}
-                            style={{ fontSize: '11px', padding: '2px 6px' }}
-                            onClick={() => setActiveTabCode('js')}
-                          >
-                            {t.apiExampleJs}
-                          </button>
-                          <button
-                            className={`btn ${activeTabCode === 'py' ? 'btn-secondary' : 'btn-ghost'}`}
-                            style={{ fontSize: '11px', padding: '2px 6px' }}
-                            onClick={() => setActiveTabCode('py')}
-                          >
-                            {t.apiExamplePy}
-                          </button>
+              {/* Endpoints List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {filteredEndpoints.map((ep) => {
+                  const isExpanded = expandedEndpoint === ep.id;
+                  return (
+                    <div
+                      key={ep.id}
+                      style={{
+                        background: 'var(--bg-surface)',
+                        borderRadius: 'var(--radius-xs)',
+                        border: '1px solid var(--border)',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div
+                        onClick={() => setExpandedEndpoint(isExpanded ? '' : ep.id)}
+                        style={{
+                          padding: '10px 12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          cursor: 'pointer',
+                          background: isExpanded ? 'var(--bg-subtle)' : undefined,
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span className={`badge ${getMethodBadgeClass(ep.method)}`}>
+                            {ep.method}
+                          </span>
+                          <span style={{ fontFamily: 'monospace', fontSize: '13px', fontWeight: '600', color: 'var(--text)' }}>
+                            {ep.path}
+                          </span>
+                          <span style={{ fontSize: '11.5px', color: 'var(--text-dim)' }}>
+                            — {ep.summary}
+                          </span>
+                        </div>
+                        <div style={{ color: 'var(--text-dim)' }}>
+                          {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
                         </div>
                       </div>
 
-                      {/* Code Block */}
-                      <pre
-                        className="font-mono"
-                        style={{
-                          background: 'var(--bg-subtle)',
-                          padding: '10px 12px',
-                          borderRadius: 'var(--radius-xs)',
-                          border: '1px solid var(--border)',
-                          fontSize: '11.5px',
-                          lineHeight: '1.4',
-                          maxHeight: '180px',
-                          overflowY: 'auto',
-                          whiteSpace: 'pre-wrap',
-                          wordBreak: 'break-word',
-                          marginBottom: '12px',
-                          color: 'var(--text)',
-                        }}
-                      >
-                        {activeTabCode === 'curl' ? ep.curlExample : activeTabCode === 'js' ? ep.jsExample : ep.pyExample}
-                      </pre>
-
-                      {/* Request Body if present */}
-                      {ep.requestBody && (
-                        <div style={{ marginBottom: '10px' }}>
-                          <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-dim)', marginBottom: '4px' }}>
-                            {t.apiReqBody}
+                      {isExpanded && (
+                        <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border)' }}>
+                          <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
+                            <button
+                              className={`btn ${activeTabCode === 'curl' ? 'btn-secondary' : 'btn-ghost'}`}
+                              style={{ fontSize: '11px', padding: '2px 6px' }}
+                              onClick={() => setActiveTabCode('curl')}
+                            >
+                              {t.apiExampleCurl}
+                            </button>
+                            <button
+                              className={`btn ${activeTabCode === 'js' ? 'btn-secondary' : 'btn-ghost'}`}
+                              style={{ fontSize: '11px', padding: '2px 6px' }}
+                              onClick={() => setActiveTabCode('js')}
+                            >
+                              {t.apiExampleJs}
+                            </button>
+                            <button
+                              className={`btn ${activeTabCode === 'py' ? 'btn-secondary' : 'btn-ghost'}`}
+                              style={{ fontSize: '11px', padding: '2px 6px' }}
+                              onClick={() => setActiveTabCode('py')}
+                            >
+                              {t.apiExamplePy}
+                            </button>
                           </div>
+
                           <pre
                             className="font-mono"
                             style={{
                               background: 'var(--bg-subtle)',
-                              padding: '8px 10px',
+                              padding: '10px 12px',
                               borderRadius: 'var(--radius-xs)',
                               border: '1px solid var(--border)',
                               fontSize: '11.5px',
                               lineHeight: '1.4',
-                              color: 'var(--text-muted)',
+                              maxHeight: '180px',
+                              overflowY: 'auto',
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word',
+                              marginBottom: '10px',
                             }}
                           >
-                            {ep.requestBody}
+                            {activeTabCode === 'curl' ? ep.curlExample : activeTabCode === 'js' ? ep.jsExample : ep.pyExample}
                           </pre>
+
+                          {ep.requestBody && (
+                            <div style={{ marginBottom: '8px' }}>
+                              <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-dim)', marginBottom: '3px' }}>
+                                {t.apiReqBody}
+                              </div>
+                              <pre className="font-mono" style={{ background: 'var(--bg-subtle)', padding: '8px', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border)', fontSize: '11px' }}>
+                                {ep.requestBody}
+                              </pre>
+                            </div>
+                          )}
+
+                          <div>
+                            <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-dim)', marginBottom: '3px' }}>
+                              {t.apiResponse}
+                            </div>
+                            <pre className="font-mono" style={{ background: 'var(--bg-subtle)', padding: '8px', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border)', fontSize: '11px', color: 'var(--badge-note-text)' }}>
+                              {ep.responseBody}
+                            </pre>
+                          </div>
                         </div>
                       )}
-
-                      {/* Response Body */}
-                      <div>
-                        <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-dim)', marginBottom: '4px' }}>
-                          {t.apiResponse}
-                        </div>
-                        <pre
-                          className="font-mono"
-                          style={{
-                            background: 'var(--bg-subtle)',
-                            padding: '8px 10px',
-                            borderRadius: 'var(--radius-xs)',
-                            border: '1px solid var(--border)',
-                            fontSize: '11.5px',
-                            lineHeight: '1.4',
-                            color: 'var(--badge-note-text)',
-                          }}
-                        >
-                          {ep.responseBody}
-                        </pre>
-                      </div>
                     </div>
-                  )}
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* SECTION 2: AI MODEL CONTEXT PROTOCOL (MCP) */}
+          {activeSection === 'mcp' && (
+            <div>
+              <div style={{ marginBottom: '16px' }}>
+                <h4 style={{ fontSize: '13.5px', fontWeight: '600', marginBottom: '4px' }}>{t.mcpTitle}</h4>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+                  {t.mcpSubtitle}
+                </p>
+              </div>
+
+              {/* Claude Desktop Configuration */}
+              <div style={{ marginBottom: '16px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xs)', padding: '12px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '12.5px', fontWeight: '600' }}>
+                    {t.mcpClaudeConfig} <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>(claude_desktop_config.json)</span>
+                  </div>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ fontSize: '11px', padding: '2px 8px' }}
+                    onClick={() => handleCopyConfig('claude', claudeDesktopConfig)}
+                  >
+                    {copiedMcpConfig === 'claude' ? <Check size={11} color="var(--success)" /> : <Copy size={11} />}
+                    <span>{copiedMcpConfig === 'claude' ? t.configCopied : t.copyConfig}</span>
+                  </button>
                 </div>
-              );
-            })}
-          </div>
+                <pre
+                  className="font-mono"
+                  style={{
+                    background: 'var(--bg-subtle)',
+                    padding: '10px 12px',
+                    borderRadius: 'var(--radius-xs)',
+                    border: '1px solid var(--border)',
+                    fontSize: '11.5px',
+                    lineHeight: '1.4',
+                    overflowX: 'auto',
+                    color: 'var(--text)',
+                  }}
+                >
+                  {claudeDesktopConfig}
+                </pre>
+              </div>
+
+              {/* Cursor / VS Code Configuration */}
+              <div style={{ marginBottom: '16px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xs)', padding: '12px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '12.5px', fontWeight: '600' }}>
+                    {t.mcpCursorConfig} <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>(mcp.json / .cursor/mcp.json)</span>
+                  </div>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ fontSize: '11px', padding: '2px 8px' }}
+                    onClick={() => handleCopyConfig('cursor', cursorMcpConfig)}
+                  >
+                    {copiedMcpConfig === 'cursor' ? <Check size={11} color="var(--success)" /> : <Copy size={11} />}
+                    <span>{copiedMcpConfig === 'cursor' ? t.configCopied : t.copyConfig}</span>
+                  </button>
+                </div>
+                <pre
+                  className="font-mono"
+                  style={{
+                    background: 'var(--bg-subtle)',
+                    padding: '10px 12px',
+                    borderRadius: 'var(--radius-xs)',
+                    border: '1px solid var(--border)',
+                    fontSize: '11.5px',
+                    lineHeight: '1.4',
+                    overflowX: 'auto',
+                    color: 'var(--text)',
+                  }}
+                >
+                  {cursorMcpConfig}
+                </pre>
+              </div>
+
+              {/* Tools List for AI Agents */}
+              <div>
+                <div style={{ fontSize: '12.5px', fontWeight: '600', marginBottom: '8px' }}>
+                  {t.mcpToolsList}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ padding: '8px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xs)', fontSize: '12px' }}>
+                    <span style={{ fontFamily: 'monospace', fontWeight: '600', color: 'var(--badge-code-text)' }}>devflow_list_snippets</span>
+                    <p style={{ fontSize: '11.5px', color: 'var(--text-dim)', marginTop: '2px' }}>Поиск и фильтрация промптов, сниппетов, секретов и заметок по тегу, типу или тексту.</p>
+                  </div>
+                  <div style={{ padding: '8px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xs)', fontSize: '12px' }}>
+                    <span style={{ fontFamily: 'monospace', fontWeight: '600', color: 'var(--badge-prompt-text)' }}>devflow_run_prompt</span>
+                    <p style={{ fontSize: '11.5px', color: 'var(--text-dim)', marginTop: '2px' }}>Интерполяция параметров шаблона <code>{'{{variable}}'}</code> и возврат готового промпта.</p>
+                  </div>
+                  <div style={{ padding: '8px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xs)', fontSize: '12px' }}>
+                    <span style={{ fontFamily: 'monospace', fontWeight: '600', color: 'var(--badge-note-text)' }}>devflow_create_snippet</span>
+                    <p style={{ fontSize: '11.5px', color: 'var(--text-dim)', marginTop: '2px' }}>Автоматическое сохранение сгенерированного кода или промпта прямо из чата в хранилище.</p>
+                  </div>
+                  <div style={{ padding: '8px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xs)', fontSize: '12px' }}>
+                    <span style={{ fontFamily: 'monospace', fontWeight: '600', color: 'var(--badge-secret-text)' }}>devflow_get_snippet</span>
+                    <p style={{ fontSize: '11.5px', color: 'var(--text-dim)', marginTop: '2px' }}>Получение полного содержимого записи (включая расшифрованные AES-256 секреты).</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
     </div>

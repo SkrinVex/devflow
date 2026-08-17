@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"devflow/internal/api"
 	"devflow/internal/assets"
 	"devflow/internal/config"
+	"devflow/internal/mcp"
 	"devflow/internal/repository/sqlite"
 	"devflow/internal/security"
 	"devflow/internal/service"
@@ -29,6 +31,36 @@ const banner = `
 `
 
 func main() {
+	// Subcommand: devflow mcp
+	if len(os.Args) > 1 && os.Args[1] == "mcp" {
+		url := os.Getenv("DEVFLOW_URL")
+		if url == "" {
+			url = "http://localhost:1451"
+		}
+		token := os.Getenv("DEVFLOW_TOKEN")
+
+		for i := 2; i < len(os.Args); i++ {
+			arg := os.Args[i]
+			if strings.HasPrefix(arg, "--url=") {
+				url = strings.TrimPrefix(arg, "--url=")
+			} else if strings.HasPrefix(arg, "--token=") {
+				token = strings.TrimPrefix(arg, "--token=")
+			}
+		}
+
+		if token == "" {
+			fmt.Fprintln(os.Stderr, "Error: DEVFLOW_TOKEN is required. Pass --token=<jwt> or set DEVFLOW_TOKEN env var.")
+			os.Exit(1)
+		}
+
+		server := mcp.NewServer(url, token)
+		if err := server.RunStdio(); err != nil {
+			fmt.Fprintf(os.Stderr, "MCP server error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	fmt.Print(banner)
 
 	// 1. Load configuration

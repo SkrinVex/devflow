@@ -181,9 +181,11 @@ export interface Translations {
   vaultSnapshot: string;
   openSettingsBtn: string;
 
-  // API Docs Modal
+  // API & MCP Docs Modal
   apiDocsTitle: string;
   apiDocsSubtitle: string;
+  tabRestApi: string;
+  tabMcp: string;
   apiBaseUrl: string;
   apiAuthHeader: string;
   apiYourToken: string;
@@ -199,6 +201,15 @@ export interface Translations {
   apiExamplePy: string;
   apiResponse: string;
   apiReqBody: string;
+
+  // MCP Section
+  mcpTitle: string;
+  mcpSubtitle: string;
+  mcpClaudeConfig: string;
+  mcpCursorConfig: string;
+  mcpToolsList: string;
+  copyConfig: string;
+  configCopied: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -213,7 +224,7 @@ export const translations: Record<Language, Translations> = {
     logOut: 'Выйти',
     confirmLogoutTitle: 'Выход из аккаунта',
     confirmLogoutDesc: 'Вы уверены, что хотите выйти из хранилища?',
-    apiDocsBtn: 'API Документация',
+    apiDocsBtn: 'API & MCP Документация',
 
     // Mobile Bottom Navigation
     mobileNavAll: 'Все',
@@ -346,7 +357,7 @@ export const translations: Record<Language, Translations> = {
     tabSecurity: '2FA Защита',
     tabPassword: 'Пароль',
     tabVault: 'Бэкап',
-    tabApi: 'REST API',
+    tabApi: 'REST API & MCP',
     twoFAEnabledStatus: 'Двухфакторная аутентификация включена',
     twoFADisabledStatus: 'Двухфакторная аутентификация выключена',
     twoFAEnabledDesc: 'Аккаунт защищен кодами Google Authenticator (TOTP)',
@@ -383,9 +394,11 @@ export const translations: Record<Language, Translations> = {
     vaultSnapshot: 'Сводка хранилища:',
     openSettingsBtn: 'Открыть настройки',
 
-    // API Docs Modal
-    apiDocsTitle: 'Интерактивная API Документация',
-    apiDocsSubtitle: 'Полное руководство по интеграции DevFlow REST API с вашими скриптами, Raycast, CLI или ботами.',
+    // API & MCP Docs Modal
+    apiDocsTitle: 'Интеграция: REST API & AI MCP Server',
+    apiDocsSubtitle: 'Управляйте своим хранилищем DevFlow через REST API или подключите напрямую к AI Агентам (Claude Desktop, Cursor, Antigravity, VS Code, Roo Code).',
+    tabRestApi: 'REST API',
+    tabMcp: 'AI Агенты (MCP Server)',
     apiBaseUrl: 'Базовый URL:',
     apiAuthHeader: 'Заголовок авторизации:',
     apiYourToken: 'Ваш активный JWT токен:',
@@ -401,6 +414,15 @@ export const translations: Record<Language, Translations> = {
     apiExamplePy: 'Python (Requests)',
     apiResponse: 'Ответ сервера (JSON):',
     apiReqBody: 'Тело запроса (JSON):',
+
+    // MCP Section
+    mcpTitle: 'Model Context Protocol (MCP) Сервер',
+    mcpSubtitle: 'DevFlow реализует стандартный протокол MCP (JSON-RPC 2.0). Ваши AI-ассистенты смогут автоматически искать нужные промпты, сохранять куски кода, доставать ключи и заполнять шаблоны прямо во время диалога!',
+    mcpClaudeConfig: 'Конфигурация для Claude Desktop',
+    mcpCursorConfig: 'Конфигурация для Cursor / VS Code / Roo Code',
+    mcpToolsList: 'Доступные инструменты (MCP Tools):',
+    copyConfig: 'Скопировать JSON конфиг',
+    configCopied: 'Конфиг скопирован!',
   },
   en: {
     // Navigation & Header
@@ -413,7 +435,7 @@ export const translations: Record<Language, Translations> = {
     logOut: 'Log out',
     confirmLogoutTitle: 'Log out',
     confirmLogoutDesc: 'Are you sure you want to sign out of your vault?',
-    apiDocsBtn: 'API Reference',
+    apiDocsBtn: 'API & MCP Docs',
 
     // Mobile Bottom Navigation
     mobileNavAll: 'All',
@@ -546,7 +568,7 @@ export const translations: Record<Language, Translations> = {
     tabSecurity: '2FA Security',
     tabPassword: 'Password',
     tabVault: 'Backup',
-    tabApi: 'REST API',
+    tabApi: 'REST API & MCP',
     twoFAEnabledStatus: 'Two-Factor Authentication is Enabled',
     twoFADisabledStatus: 'Two-Factor Authentication is Disabled',
     twoFAEnabledDesc: 'Protected with Google Authenticator (TOTP)',
@@ -583,9 +605,11 @@ export const translations: Record<Language, Translations> = {
     vaultSnapshot: 'Vault Snapshot:',
     openSettingsBtn: 'Open Settings',
 
-    // API Docs Modal
-    apiDocsTitle: 'Interactive API Reference',
-    apiDocsSubtitle: 'Complete developer guide to integrate DevFlow REST API with scripts, Raycast, CLI tools, or automated workflows.',
+    // API & MCP Docs Modal
+    apiDocsTitle: 'Integration: REST API & AI MCP Server',
+    apiDocsSubtitle: 'Manage DevFlow via REST API or connect directly to AI Agents (Claude Desktop, Cursor, Antigravity, VS Code, Roo Code).',
+    tabRestApi: 'REST API',
+    tabMcp: 'AI Agents (MCP Server)',
     apiBaseUrl: 'Base URL:',
     apiAuthHeader: 'Auth Header:',
     apiYourToken: 'Your active JWT token:',
@@ -601,5 +625,14 @@ export const translations: Record<Language, Translations> = {
     apiExamplePy: 'Python (Requests)',
     apiResponse: 'Server Response (JSON):',
     apiReqBody: 'Request Body (JSON):',
+
+    // MCP Section
+    mcpTitle: 'Model Context Protocol (MCP) Server',
+    mcpSubtitle: 'DevFlow implements standard Model Context Protocol (JSON-RPC 2.0). Connect your AI models to search prompts, save code, retrieve secrets, and run templates in real-time!',
+    mcpClaudeConfig: 'Claude Desktop Configuration',
+    mcpCursorConfig: 'Cursor / VS Code / Roo Code Configuration',
+    mcpToolsList: 'Available AI Tools (MCP Tools):',
+    copyConfig: 'Copy JSON Config',
+    configCopied: 'Config Copied!',
   },
 };

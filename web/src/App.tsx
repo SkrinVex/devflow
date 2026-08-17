@@ -116,6 +116,44 @@ const DevFlowApp: React.FC = () => {
     }
   }, [isAuthenticated, loadSnippets, loadTags]);
 
+  // Real-Time Multi-Device Sync Stream (SSE)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const token = localStorage.getItem('devflow_token');
+    if (!token) return;
+
+    let eventSource: EventSource | null = null;
+    try {
+      eventSource = new EventSource(`/api/v1/events?token=${encodeURIComponent(token)}`);
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data && data.type) {
+            // Silently refresh data on remote mutation
+            loadSnippets();
+            loadTags();
+          }
+        } catch {
+          // ignore
+        }
+      };
+
+      eventSource.onerror = () => {
+        // Automatic reconnection is handled by EventSource
+      };
+    } catch (e) {
+      console.warn('SSE connection failed', e);
+    }
+
+    return () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+    };
+  }, [isAuthenticated, loadSnippets, loadTags]);
+
   const handleTogglePin = async (id: string) => {
     try {
       await api.togglePin(id);

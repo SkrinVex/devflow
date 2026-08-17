@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"devflow/internal/domain"
+	"devflow/internal/events"
 	"devflow/internal/security"
 	"devflow/internal/service"
 )
@@ -102,6 +103,9 @@ func (h *SnippetHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Broadcast real-time SSE event to all connected user devices
+	events.GetHub().Publish(events.EventSnippetCreated, claims.UserID, snippet)
+
 	RespondSuccess(w, http.StatusCreated, "Snippet created", snippet)
 }
 
@@ -160,6 +164,9 @@ func (h *SnippetHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Broadcast real-time SSE event to all connected user devices
+	events.GetHub().Publish(events.EventSnippetUpdated, claims.UserID, snippet)
+
 	RespondSuccess(w, http.StatusOK, "Snippet updated", snippet)
 }
 
@@ -184,6 +191,9 @@ func (h *SnippetHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		RespondError(w, http.StatusInternalServerError, "Failed to delete snippet", err)
 		return
 	}
+
+	// Broadcast real-time SSE event to all connected user devices
+	events.GetHub().Publish(events.EventSnippetDeleted, claims.UserID, map[string]string{"id": id})
 
 	RespondSuccess(w, http.StatusOK, "Snippet deleted", nil)
 }
@@ -211,6 +221,9 @@ func (h *SnippetHandler) TogglePin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Broadcast real-time SSE event to all connected user devices
+	events.GetHub().Publish(events.EventSnippetPinned, claims.UserID, updated)
+
 	RespondJSON(w, http.StatusOK, updated)
 }
 
@@ -236,6 +249,9 @@ func (h *SnippetHandler) ToggleFavorite(w http.ResponseWriter, r *http.Request) 
 		RespondError(w, http.StatusInternalServerError, "Failed to toggle favorite", err)
 		return
 	}
+
+	// Broadcast real-time SSE event to all connected user devices
+	events.GetHub().Publish(events.EventSnippetFavorited, claims.UserID, updated)
 
 	RespondJSON(w, http.StatusOK, updated)
 }
@@ -286,7 +302,7 @@ func (h *SnippetHandler) GetTags(w http.ResponseWriter, r *http.Request) {
 
 	tags, err := h.snippetService.GetUserTags(r.Context(), claims.UserID)
 	if err != nil {
-		RespondError(w, http.StatusInternalServerError, "Failed to get tags", err)
+		RespondError(w, http.StatusInternalServerError, "Failed to retrieve tags", err)
 		return
 	}
 
@@ -297,16 +313,73 @@ func (h *SnippetHandler) GetTags(w http.ResponseWriter, r *http.Request) {
 	RespondJSON(w, http.StatusOK, tags)
 }
 
-// Helpers for route parameters
+func (h *SnippetHandler) ExportVault(w http.ResponseWriter, r *http.Request) {
+	claims, ok := r.Context().Value("user_claims").(*security.Claims)
+	if !ok {
+		RespondError(w, http.StatusUnauthorized, "Unauthorized", domain.ErrUnauthorized)
+		return
+	}
+
+	userProfile := domain.UserProfile{
+		ID:           claims.UserID,
+		Username:     claims.Username,
+		Email:        claims.Email,
+		Is2FAEnabled: claims.Is2FAEnabled,
+	}
+
+	export, err := h.snippetService.ExportVault(r.Context(), userProfile)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, "Failed to export vault", err)
+		return
+	}
+
+	w.Header().Set("Content-Disposition", "attachment; filename=devflow_vault_backup.json")
+	RespondJSON(w, http.StatusOK, export)
+}
+
+func (h *SnippetHandler) ImportVault(w http.ResponseWriter, r *http.Request) {
+	claims, ok := r.Context().Value("user_claims").(*security.Claims)
+	if !ok {
+		RespondError(w, http.StatusUnauthorized, "Unauthorized", domain.ErrUnauthorized)
+		return
+	}
+
+	var export domain.VaultExport
+	if err := json.NewDecoder(r.Body).Decode(&export); err != nil {
+		RespondError(w, http.StatusBadRequest, "Invalid backup JSON format", err)
+		return
+	}
+
+	count, err := h.snippetService.ImportVault(r.Context(), claims.UserID, export)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, "Failed to import vault", err)
+		return
+	}
+
+	// Broadcast real-time SSE event to all connected user devices
+	events.GetHub().Publish(events.EventVaultImported, claims.UserID, map[string]int{"imported_count": count})
+
+	RespondJSON(w, http.StatusOK, map[string]interface{}{
+		"message":        "Vault imported successfully",
+		"imported_count": count,
+	})
+}
+
 func extractIDFromPath(path, prefix string) string {
-	rest := strings.TrimPrefix(path, prefix)
-	parts := strings.Split(rest, "/")
-	return parts[0]
+	trimmed := strings.TrimPrefix(path, prefix)
+	parts := strings.Split(trimmed, "/")
+	if len(parts) > 0 {
+		return parts[0]
+	}
+	return ""
 }
 
 func extractIDFromSubPath(path, prefix, suffix string) string {
-	rest := strings.TrimPrefix(path, prefix)
-	rest = strings.TrimSuffix(rest, suffix)
-	parts := strings.Split(rest, "/")
-	return parts[0]
+	trimmed := strings.TrimPrefix(path, prefix)
+	trimmed = strings.TrimSuffix(trimmed, suffix)
+	parts := strings.Split(trimmed, "/")
+	if len(parts) > 0 {
+		return parts[0]
+	}
+	return ""
 }
