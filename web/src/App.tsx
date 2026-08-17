@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LanguageProvider, useI18n } from './context/LanguageContext';
 import { Navbar } from './components/Navbar';
@@ -116,7 +116,14 @@ const DevFlowApp: React.FC = () => {
     }
   }, [isAuthenticated, loadSnippets, loadTags]);
 
-  // Real-Time Multi-Device Sync via WebSocket
+  // Keep stable refs to avoid reconnecting WebSocket when filter state changes
+  const loadSnippetsRef = useRef(loadSnippets);
+  loadSnippetsRef.current = loadSnippets;
+
+  const loadTagsRef = useRef(loadTags);
+  loadTagsRef.current = loadTags;
+
+  // Real-Time Multi-Device Sync via WebSocket (Connected once per session)
   useEffect(() => {
     if (!isAuthenticated) return;
 
@@ -137,18 +144,28 @@ const DevFlowApp: React.FC = () => {
         ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
-          // Connected
+          // WebSocket connected
         };
 
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-            if (data && data.type && data.type !== 'connected') {
-              // Remote mutation detected (created, updated, deleted, pinned, favorited)
-              // Instantly reload local feed
-              loadSnippets();
-              loadTags();
+            if (!data || !data.type || data.type === 'connected') return;
+
+            // 1. Instant optimistic DOM state update (0ms latency across devices)
+            if (data.type === 'snippet:deleted' && data.payload?.id) {
+              setSnippets((prev) => prev.filter((s) => s.id !== data.payload.id));
+              setTotalSnippets((prev) => Math.max(0, prev - 1));
+            } else if (data.type === 'snippet:created' && data.payload?.id) {
+              setSnippets((prev) => [data.payload, ...prev.filter((s) => s.id !== data.payload.id)]);
+              setTotalSnippets((prev) => prev + 1);
+            } else if ((data.type === 'snippet:updated' || data.type === 'snippet:pinned' || data.type === 'snippet:favorited') && data.payload?.id) {
+              setSnippets((prev) => prev.map((s) => s.id === data.payload.id ? data.payload : s));
             }
+
+            // 2. Full background re-sync to ensure exact ordering and tags
+            if (loadSnippetsRef.current) loadSnippetsRef.current();
+            if (loadTagsRef.current) loadTagsRef.current();
           } catch {
             // ignore
           }
@@ -178,7 +195,7 @@ const DevFlowApp: React.FC = () => {
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
       if (ws) ws.close();
     };
-  }, [isAuthenticated, loadSnippets, loadTags]);
+  }, [isAuthenticated]);
 
   const handleTogglePin = async (id: string) => {
     try {

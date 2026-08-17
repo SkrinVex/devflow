@@ -34,9 +34,12 @@ func Auth(jwtManager *security.JWTManager) func(http.Handler) http.Handler {
 				}
 			}
 
-			// 3. Check query param ?token= (used for EventSource SSE)
+			// 3. Check query param ?token= or ?access_token= (used for WebSocket & EventSource)
 			if tokenString == "" {
 				tokenString = r.URL.Query().Get("token")
+				if tokenString == "" {
+					tokenString = r.URL.Query().Get("access_token")
+				}
 			}
 
 			if tokenString == "" {

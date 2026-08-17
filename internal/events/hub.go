@@ -44,10 +44,10 @@ var globalHub *Hub
 var once sync.Once
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
+	ReadBufferSize:  2048,
+	WriteBufferSize: 2048,
 	CheckOrigin: func(r *http.Request) bool {
-		// Allow all origins for reverse proxies (Coolify, Traefik, Docker)
+		// Allow all origins for reverse proxies (Coolify, Traefik, Docker, PWA)
 		return true
 	},
 }
@@ -69,7 +69,7 @@ func (h *Hub) Register(c *Client) {
 		h.clients[c.userID] = make(map[*Client]bool)
 	}
 	h.clients[c.userID][c] = true
-	log.Printf("🔌 Real-time client connected for user: %s (total active: %d)", c.userID, len(h.clients[c.userID]))
+	log.Printf("🔌 Real-time WebSocket connected for user: %s (total active devices: %d)", c.userID, len(h.clients[c.userID]))
 }
 
 func (h *Hub) Unregister(c *Client) {
@@ -83,7 +83,7 @@ func (h *Hub) Unregister(c *Client) {
 			if len(userClients) == 0 {
 				delete(h.clients, c.userID)
 			}
-			log.Printf("🔌 Real-time client disconnected for user: %s", c.userID)
+			log.Printf("🔌 Real-time WebSocket disconnected for user: %s (remaining: %d)", c.userID, len(h.clients[c.userID]))
 		}
 	}
 }
@@ -105,20 +105,22 @@ func (h *Hub) Publish(eventType EventType, userID string, payload interface{}) {
 	defer h.mu.RUnlock()
 
 	if userClients, ok := h.clients[userID]; ok {
+		log.Printf("📢 Broadcasting event '%s' to user %s across %d connected device(s)", eventType, userID, len(userClients))
 		for client := range userClients {
 			select {
 			case client.send <- data:
 			default:
-				// If send buffer is full, unregister client
-				go h.Unregister(client)
+				log.Printf("⚠️ Client buffer full for user %s, skipping frame", userID)
 			}
 		}
+	} else {
+		log.Printf("ℹ️ No active WebSocket clients connected for user %s", userID)
 	}
 }
 
 // writePump pumps messages from the hub to the websocket connection.
 func (c *Client) writePump() {
-	ticker := time.NewTicker(25 * time.Second)
+	ticker := time.NewTicker(20 * time.Second)
 	defer func() {
 		ticker.Stop()
 		c.conn.Close()
@@ -185,7 +187,7 @@ func (c *Client) readPump() {
 func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request, userID string) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("❌ Failed to upgrade websocket: %v", err)
+		log.Printf("❌ Failed to upgrade websocket for user %s: %v", userID, err)
 		return
 	}
 
@@ -193,7 +195,7 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request, userID string) {
 		hub:    h,
 		conn:   conn,
 		userID: userID,
-		send:   make(chan []byte, 64),
+		send:   make(chan []byte, 128),
 	}
 
 	h.Register(client)
