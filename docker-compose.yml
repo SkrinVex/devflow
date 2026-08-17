@@ -1,0 +1,24 @@
+services:
+  devflow:
+    image: devflow:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: devflow
+    restart: unless-stopped
+    ports:
+      - "1451:1451"
+    environment:
+      - PORT=1451
+      - HOST=0.0.0.0
+      - DATA_DIR=/data
+      - APP_ENV=production
+      # - JWT_SECRET=replace_with_a_secure_random_string_in_production
+      # - ENABLE_REGISTRATION=true
+    volumes:
+      # Persistent storage volume for SQLite database and files
+      - devflow_data:/data
+
+volumes:
+  devflow_data:
+    driver: local

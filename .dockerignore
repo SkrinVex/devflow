@@ -1,0 +1,13 @@
+.git
+.gitignore
+.env
+data/
+*.db
+*.db-shm
+*.db-wal
+*.exe
+*.log
+web/node_modules/
+web/dist/
+internal/assets/dist/*
+!internal/assets/dist/index.html
