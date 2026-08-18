@@ -55,11 +55,46 @@ CREATE INDEX IF NOT EXISTS idx_snippets_user_created ON snippets(user_id, create
 CREATE INDEX IF NOT EXISTS idx_snippets_user_pinned ON snippets(user_id, is_pinned DESC, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_snippets_user_type ON snippets(user_id, type);
 CREATE INDEX IF NOT EXISTS idx_tags_user_name ON tags(user_id, name);
+
+-- SQLite FTS5 Full-Text Search Virtual Table
+CREATE VIRTUAL TABLE IF NOT EXISTS snippets_fts USING fts5(
+    snippet_id UNINDEXED,
+    user_id UNINDEXED,
+    title,
+    content,
+    tokenize = 'unicode61'
+);
+
+-- Triggers to synchronize FTS5 index automatically with snippets table
+CREATE TRIGGER IF NOT EXISTS trg_snippets_ai AFTER INSERT ON snippets BEGIN
+    INSERT INTO snippets_fts(snippet_id, user_id, title, content)
+    VALUES (new.id, new.user_id, new.title, new.content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_snippets_ad AFTER DELETE ON snippets BEGIN
+    DELETE FROM snippets_fts WHERE snippet_id = old.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_snippets_au AFTER UPDATE ON snippets BEGIN
+    DELETE FROM snippets_fts WHERE snippet_id = old.id;
+    INSERT INTO snippets_fts(snippet_id, user_id, title, content)
+    VALUES (new.id, new.user_id, new.title, new.content);
+END;
 `
 
 func Migrate(ctx context.Context, db *DB) error {
 	if _, err := db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("failed to apply migrations: %w", err)
 	}
+
+	// Populate FTS5 index for any existing snippets that were created before FTS5 table
+	populateFTS := `
+	INSERT INTO snippets_fts(snippet_id, user_id, title, content)
+	SELECT s.id, s.user_id, s.title, s.content
+	FROM snippets s
+	WHERE s.id NOT IN (SELECT snippet_id FROM snippets_fts);
+	`
+	_, _ = db.ExecContext(ctx, populateFTS)
+
 	return nil
 }

@@ -83,10 +83,21 @@ export interface Translations {
   sortNewest: string;
   sortOldest: string;
 
-  // Guest Hero
-  heroTitle: string;
-  heroSubtitle: string;
-  getStarted: string;
+  // Guest Hero & Global State
+  guestWelcomeTitle: string;
+  guestWelcomeSubtitle: string;
+  loading: string;
+  toastSaved: string;
+  toastDeleted: string;
+  toastDuplicated: string;
+  toastCopied: string;
+  welcomeBack: string;
+  twoFAActivated: string;
+  vaultUpdated: string;
+  confirmSignOutTitle: string;
+  confirmSignOutDesc: string;
+  signOut: string;
+  signedOut: string;
 
   // Prompt Runner Modal
   promptRunnerTitle: string;
@@ -94,6 +105,9 @@ export interface Translations {
   renderedPreview: string;
   copyInterpolated: string;
   cancel: string;
+  templateLabel: string;
+  fillVariables: string;
+  interpolatedPreview: string;
 
   // Auth Modal
   signInTitle: string;
@@ -125,61 +139,63 @@ export interface Translations {
 
   // 2FA Setup Modal
   twoFASetupTitle: string;
-  twoFAScanSubtitle: string;
-  orManualKey: string;
-  copyKey: string;
-  keyCopied: string;
-  enter6DigitCode: string;
+  twoFABackupTitle: string;
+  twoFAScanInstructions: string;
+  manualEntryKey: string;
+  enterCodeToVerify: string;
   activate2FA: string;
-  activating: string;
-  backupCodesTitle: string;
-  backupCodesWarning: string;
-  copyAllCodes: string;
-  codesCopied: string;
+  twoFABackupWarning: string;
+  copyCodes: string;
   downloadTxt: string;
-  codesSavedConfirm: string;
+  savedDone: string;
 
   // Settings Modal
-  settingsModalTitle: string;
-  tabSecurity: string;
+  tab2FA: string;
   tabPassword: string;
   tabVault: string;
-  tabApi: string;
-  twoFAEnabledStatus: string;
-  twoFADisabledStatus: string;
+  tabApiMcp: string;
+  twoFAEnabledTitle: string;
+  twoFADisabledTitle: string;
   twoFAEnabledDesc: string;
   twoFADisabledDesc: string;
-  disable2FAButton: string;
-  confirmDisableTitle: string;
-  confirmDisableButton: string;
+  disable2FA: string;
+  confirmPasswordToDisable: string;
+  confirmDisable: string;
+  enable2FAButton: string;
   currentPassword: string;
   newPassword: string;
   confirmNewPassword: string;
-  updatePasswordButton: string;
-  updating: string;
-  passwordUpdated: string;
-  exportTitle: string;
-  exportSubtitle: string;
-  exportButton: string;
-  importTitle: string;
-  importSubtitle: string;
-  importButton: string;
-  importSuccess: string;
+  updatePassword: string;
+  passwordChangedSuccess: string;
+  vaultBackupDescription: string;
+  exportJsonButton: string;
+  importJsonButton: string;
+  exporting: string;
+  importing: string;
+  apiDocsIntro: string;
+  openFullApiDocs: string;
 
   // Profile Modal
-  profileTitle: string;
-  userIdLabel: string;
-  idCopied: string;
-  copyId: string;
-  memberSince: string;
-  securityStatus: string;
-  protectedBy2FA: string;
+  developerProfile: string;
+  accentColor: string;
+  roleTitle: string;
+  vaultStatistics: string;
+  code: string;
+  pwaInstalledBadge: string;
+  installPwaButton: string;
+  pwaManualGuide: string;
+  quickExportVault: string;
   unprotected2FA: string;
-  setup2FANow: string;
-  developerRoleLabel: string;
-  customAvatarColor: string;
-  vaultSnapshot: string;
-  openSettingsBtn: string;
+
+  // Snippet Edit Modal
+  editSnippetTitle: string;
+  titleLabel: string;
+  typeLabel: string;
+  languageLabel: string;
+  contentLabel: string;
+  tagsLabel: string;
+  addTagInputPlaceholder: string;
+  saveChanges: string;
 
   // API & MCP Docs Modal
   apiDocsTitle: string;
@@ -195,7 +211,6 @@ export interface Translations {
   apiGroupSnippets: string;
   apiGroupPrompts: string;
   apiGroupVault: string;
-  apiGroupUtils: string;
   apiExampleCurl: string;
   apiExampleJs: string;
   apiExamplePy: string;
@@ -248,182 +263,198 @@ export const translations: Record<Language, Translations> = {
     noTags: 'Тегов пока нет. Они создаются автоматически при вставке.',
 
     // Smart Capture
-    capturePlaceholder: 'Быстрый ввод: вставьте промпт, код, секрет или заметку...',
-    titlePlaceholder: 'Название (опционально)...',
+    capturePlaceholder: 'Вставьте код, prompt, секрет или заметку (автоопределение типа)...',
+    titlePlaceholder: 'Название (опционально, создаётся автоматически)...',
     saveToVault: 'Сохранить',
     saving: 'Сохранение...',
     clearInput: 'Очистить',
     saveShortcut: 'Ctrl+Enter для сохранения',
-    addTagPlaceholder: '+ тег',
-    variables: 'Переменные:',
-    typePrompt: 'AI Промпт',
+    addTagPlaceholder: 'тег...',
+    variables: 'Переменные',
+    typePrompt: 'Промпт',
     typeCode: 'Код',
-    typeSecret: 'Секрет',
+    typeSecret: 'Секрет (AES-256)',
     typeNote: 'Заметка',
 
     // Feed & Cards
     copy: 'Копировать',
     copied: 'Скопировано!',
-    copyAsMarkdown: 'Скопировать как Markdown',
+    copyAsMarkdown: 'Скопировать как Markdown код',
     markdownCopied: 'Markdown скопирован!',
     duplicate: 'Дублировать',
-    duplicated: 'Запись продублирована!',
-    runTemplate: 'Заполнить шаблон',
+    duplicated: 'Дубликат создан',
+    runTemplate: 'Запустить шаблон',
     reveal: 'Показать',
     hide: 'Скрыть',
     unpin: 'Открепить',
-    pin: 'Закрепить сверху',
+    pin: 'Закрепить',
     removeFromFavorites: 'Убрать из избранного',
-    addToFavorites: 'Добавить в избранное',
+    addToFavorites: 'В избранное',
     edit: 'Редактировать',
     delete: 'Удалить',
-    confirmDeleteTitle: 'Удаление записи',
-    confirmDeleteDesc: 'Эта запись будет безвозвратно удалена из хранилища. Продолжить?',
+    confirmDeleteTitle: 'Удалить запись?',
+    confirmDeleteDesc: 'Это действие удалит запись из вашего персонального хранилища безвозвратно.',
     itemDeleted: 'Запись удалена',
-    savedToVault: 'Сохранено в хранилище!',
-    updatedSuccessfully: 'Запись обновлена!',
+    savedToVault: 'Сохранено в хранилище',
+    updatedSuccessfully: 'Запись успешно обновлена',
     filteredBy: 'Фильтр:',
-    clearAll: 'Сбросить',
-    pinnedOnly: 'Закрепленные',
+    clearAll: 'Сбросить всё',
+    pinnedOnly: 'Закреплённые',
     starredOnly: 'Избранные',
-    loadingSnippets: 'Загрузка записей...',
-    vaultEmptyTitle: 'Хранилище пусто',
-    vaultEmptySubtitle: 'Вставьте промпт, код или заметку в поле выше, чтобы добавить первую запись.',
+    loadingSnippets: 'Загрузка записей из хранилища...',
+    vaultEmptyTitle: 'Хранилище пока пусто',
+    vaultEmptySubtitle: 'Вставьте любой фрагмент кода, AI-промпт или секрет в поле выше — DevFlow автоматически определит тип и теги!',
     noFilterMatchTitle: 'Ничего не найдено',
-    noFilterMatchSubtitle: 'Попробуйте изменить поисковый запрос или сбросить фильтры.',
+    noFilterMatchSubtitle: 'Попробуйте изменить поисковый запрос или сбросить активные фильтры.',
     resetFilters: 'Сбросить фильтры',
     sortBy: 'Сортировка:',
     sortNewest: 'Сначала новые',
     sortOldest: 'Сначала старые',
 
-    // Guest Hero
-    heroTitle: 'Персональное хранилище промптов и сниппетов',
-    heroSubtitle: 'Забудьте о хаосе в «Избранном» Telegram. DevFlow автоматически определяет язык кода, вытягивает переменные из промптов, создает теги и позволяет копировать любой контент в один клик.',
-    getStarted: 'Начать работу',
+    // Guest Hero & Global State
+    guestWelcomeTitle: 'Умное персональное хранилище разработчика',
+    guestWelcomeSubtitle: 'Сохраняйте AI-промпты, сниппеты кода, зашифрованные API-ключи и заметки с автоопределением типа и синхронизацией в реальном времени.',
+    loading: 'Загрузка...',
+    toastSaved: 'Запись сохранена',
+    toastDeleted: 'Запись удалена',
+    toastDuplicated: 'Запись продублирована',
+    toastCopied: 'Скопировано в буфер обмена',
+    welcomeBack: 'С возвращением!',
+    twoFAActivated: '2FA успешно включена!',
+    vaultUpdated: 'Хранилище обновлено!',
+    confirmSignOutTitle: 'Выход из аккаунта',
+    confirmSignOutDesc: 'Вы уверены, что хотите выйти из аккаунта?',
+    signOut: 'Выйти',
+    signedOut: 'Вы вышли из системы',
 
     // Prompt Runner Modal
-    promptRunnerTitle: 'Запуск шаблона промпта',
-    promptRunnerSubtitle: 'Заполните параметры ниже, чтобы сгенерировать готовый промпт для ChatGPT, Claude или Midjourney.',
-    renderedPreview: 'Предпросмотр результата:',
+    promptRunnerTitle: 'Запуск AI шаблона',
+    promptRunnerSubtitle: 'Заполните параметры промпта для генерации готового текста',
+    renderedPreview: 'Итоговый промпт:',
     copyInterpolated: 'Скопировать готовый промпт',
     cancel: 'Отмена',
+    templateLabel: 'Шаблон',
+    fillVariables: 'Параметры шаблона',
+    interpolatedPreview: 'Готовый результат',
 
     // Auth Modal
-    signInTitle: 'Вход в DevFlow',
+    signInTitle: 'Вход в хранилище',
     signUpTitle: 'Создание аккаунта',
-    twoFATitle: 'Двухфакторная проверка',
-    twoFASubtitle: 'Введите 6-значный код из Google Authenticator или резервный код.',
+    twoFATitle: 'Двухфакторная аутентификация',
+    twoFASubtitle: 'Введите 6-значный код из вашего приложения аутентификатора',
     usernameOrEmail: 'Имя пользователя или Email',
     username: 'Имя пользователя',
     email: 'Email адрес',
     password: 'Пароль',
-    confirmPassword: 'Подтверждение пароля',
+    confirmPassword: 'Подтвердите пароль',
     signInButton: 'Войти',
     signUpButton: 'Создать аккаунт',
-    verifyButton: 'Подтвердить',
+    verifyButton: 'Подтвердить вход',
     verifying: 'Проверка...',
     processing: 'Обработка...',
     passwordsMismatch: 'Пароли не совпадают',
-    passwordWeak: 'Пароль не соответствует требованиям безопасности',
+    passwordWeak: 'Пароль слишком слабый',
     strengthLabel: 'Надёжность пароля:',
     strengthVeryWeak: 'Очень слабый',
     strengthWeak: 'Слабый',
     strengthFair: 'Средний',
-    strengthGood: 'Хороший',
-    strengthStrong: 'Надёжный',
+    strengthGood: 'Надёжный',
+    strengthStrong: 'Отличный',
     reqMinLength: 'Минимум 8 символов',
     reqLower: 'Строчные буквы (a-z)',
     reqUpper: 'Заглавные буквы (A-Z)',
     reqNumber: 'Цифры (0-9)',
 
     // 2FA Setup Modal
-    twoFASetupTitle: 'Настройка двухфакторной аутентификации (2FA)',
-    twoFAScanSubtitle: 'Отсканируйте QR-код в приложении Google Authenticator, 1Password или Bitwarden на смартфоне.',
-    orManualKey: 'Или введите ключ вручную:',
-    copyKey: 'Копировать ключ',
-    keyCopied: 'Ключ скопирован',
-    enter6DigitCode: 'Введите 6-значный код из приложения:',
+    twoFASetupTitle: 'Настройка 2FA защиты',
+    twoFABackupTitle: 'Резервные коды 2FA',
+    twoFAScanInstructions: 'Отсканируйте этот QR-код в приложении аутентификатора (Google Authenticator, 1Password, 2FAS) или введите ключ вручную.',
+    manualEntryKey: 'Ключ для ручного ввода',
+    enterCodeToVerify: 'Введите 6-значный код из приложения',
     activate2FA: 'Активировать 2FA',
-    activating: 'Активация...',
-    backupCodesTitle: 'Сохраните резервные коды',
-    backupCodesWarning: 'Внимание: если вы потеряете доступ к телефону, эти 8 кодов — единственный способ войти в аккаунт.',
-    copyAllCodes: 'Скопировать все коды',
-    codesCopied: 'Коды скопированы!',
+    twoFABackupWarning: 'ВНИМАНИЕ: Сохраните эти одноразовые резервные коды в надёжном месте. Если вы потеряете доступ к телефону, они помогут восстановить вход.',
+    copyCodes: 'Скопировать коды',
     downloadTxt: 'Скачать .txt',
-    codesSavedConfirm: 'Я сохранил резервные коды',
+    savedDone: 'Коды сохранены, готово',
 
     // Settings Modal
-    settingsModalTitle: 'Настройки и безопасность',
-    tabSecurity: '2FA Защита',
-    tabPassword: 'Пароль',
-    tabVault: 'Бэкап',
-    tabApi: 'REST API & MCP',
-    twoFAEnabledStatus: 'Двухфакторная аутентификация включена',
-    twoFADisabledStatus: 'Двухфакторная аутентификация выключена',
-    twoFAEnabledDesc: 'Аккаунт защищен кодами Google Authenticator (TOTP)',
-    twoFADisabledDesc: 'Включите 2FA для надежной защиты хранилища от кражи пароля',
-    disable2FAButton: 'Отключить 2FA',
-    confirmDisableTitle: 'Введите пароль для отключения 2FA:',
-    confirmDisableButton: 'Подтвердить отключение',
+    tab2FA: '2FA Защита',
+    tabPassword: 'Смена пароля',
+    tabVault: 'Резервные копии',
+    tabApiMcp: 'API & MCP',
+    twoFAEnabledTitle: 'Двухфакторная защита активна',
+    twoFADisabledTitle: 'Двухфакторная защита отключена',
+    twoFAEnabledDesc: 'Ваш аккаунт защищён одноразовыми TOTP-кодами.',
+    twoFADisabledDesc: 'Включите 2FA для максимальной защиты ваших секретов и ключей.',
+    disable2FA: 'Отключить 2FA',
+    confirmPasswordToDisable: 'Введите текущий пароль для отключения',
+    confirmDisable: 'Подтвердить отключение',
+    enable2FAButton: 'Настроить и включить 2FA',
     currentPassword: 'Текущий пароль',
     newPassword: 'Новый пароль',
     confirmNewPassword: 'Подтвердите новый пароль',
-    updatePasswordButton: 'Обновить пароль',
-    updating: 'Обновление...',
-    passwordUpdated: 'Пароль успешно изменён!',
-    exportTitle: 'Экспорт хранилища',
-    exportSubtitle: 'Скачать полный JSON-архив всех промптов, кода и заметок',
-    exportButton: 'Скачать JSON',
-    importTitle: 'Импорт из копии',
-    importSubtitle: 'Восстановить записи из JSON-файла',
-    importButton: 'Выбрать файл',
-    importSuccess: 'Успешно импортировано записей:',
+    updatePassword: 'Обновить пароль',
+    passwordChangedSuccess: 'Пароль успешно изменён!',
+    vaultBackupDescription: 'Резервное копирование всех ваших сниппетов, промптов и тегов в JSON файл, а также восстановление из резервной копии.',
+    exportJsonButton: 'Экспорт в JSON',
+    importJsonButton: 'Импорт из JSON',
+    exporting: 'Экспорт...',
+    importing: 'Импорт...',
+    apiDocsIntro: 'DevFlow предоставляет полноценный REST API и сервер Model Context Protocol (MCP) для управления хранилищем напрямую из AI-ассистентов (Claude Desktop, Cursor, VS Code).',
+    openFullApiDocs: 'Открыть полную документацию REST API & MCP',
 
     // Profile Modal
-    profileTitle: 'Профиль разработчика',
-    userIdLabel: 'ID пользователя:',
-    idCopied: 'ID скопирован!',
-    copyId: 'Копировать ID',
-    memberSince: 'В DevFlow с:',
-    securityStatus: 'Безопасность аккаунта:',
-    protectedBy2FA: 'Защищен 2FA (Google TOTP)',
-    unprotected2FA: '2FA не подключена (рекомендуется)',
-    setup2FANow: 'Подключить 2FA',
-    developerRoleLabel: 'Специализация / Роль:',
-    customAvatarColor: 'Цвет аватара:',
-    vaultSnapshot: 'Сводка хранилища:',
-    openSettingsBtn: 'Открыть настройки',
+    developerProfile: 'Профиль разработчика',
+    accentColor: 'Цвет аватара',
+    roleTitle: 'Специализация',
+    vaultStatistics: 'Статистика хранилища',
+    code: 'Код',
+    pwaInstalledBadge: 'Приложение PWA установлено',
+    installPwaButton: 'Установить как PWA приложение',
+    pwaManualGuide: 'Чтобы установить PWA: откройте меню браузера (три точки или поделиться) и выберите «Добавить на главный экран».',
+    quickExportVault: 'Быстрый экспорт хранилища (JSON)',
+    unprotected2FA: '2FA отключена',
+
+    // Snippet Edit Modal
+    editSnippetTitle: 'Редактирование записи',
+    titleLabel: 'Название',
+    typeLabel: 'Тип записи',
+    languageLabel: 'Язык программирования',
+    contentLabel: 'Содержимое',
+    tagsLabel: 'Теги',
+    addTagInputPlaceholder: 'Добавить тег и нажать Enter...',
+    saveChanges: 'Сохранить изменения',
 
     // API & MCP Docs Modal
-    apiDocsTitle: 'Интеграция: REST API & AI MCP Server',
-    apiDocsSubtitle: 'Управляйте своим хранилищем DevFlow через REST API или подключите напрямую к AI Агентам (Claude Desktop, Cursor, Antigravity, VS Code, Roo Code).',
+    apiDocsTitle: 'REST API & Model Context Protocol (MCP)',
+    apiDocsSubtitle: 'Интеграция персонального хранилища DevFlow со сторонними сервисами и AI-ассистентами.',
     tabRestApi: 'REST API',
     tabMcp: 'AI Агенты (MCP Server)',
     apiBaseUrl: 'Базовый URL:',
     apiAuthHeader: 'Заголовок авторизации:',
-    apiYourToken: 'Ваш активный JWT токен:',
+    apiYourToken: 'Ваш JWT токен:',
     apiCopyToken: 'Скопировать токен',
     apiTokenCopied: 'Токен скопирован!',
-    apiGroupAuth: 'Аутентификация и 2FA',
-    apiGroupSnippets: 'Записи и Сниппеты',
-    apiGroupPrompts: 'AI Промпты и Шаблонизатор',
-    apiGroupVault: 'Экспорт и Импорт',
-    apiGroupUtils: 'Служебные эндпоинты',
+    apiGroupAuth: 'Аутентификация',
+    apiGroupSnippets: 'Сниппеты & Поиск',
+    apiGroupPrompts: 'AI Промпты',
+    apiGroupVault: 'Экспорт & Синхронизация',
     apiExampleCurl: 'cURL',
     apiExampleJs: 'JavaScript (Fetch)',
     apiExamplePy: 'Python (Requests)',
-    apiResponse: 'Ответ сервера (JSON):',
+    apiResponse: 'Пример ответа:',
     apiReqBody: 'Тело запроса (JSON):',
 
     // MCP Section
-    mcpTitle: 'Model Context Protocol (MCP) Сервер',
-    mcpSubtitle: 'DevFlow реализует стандартный протокол MCP (JSON-RPC 2.0). Ваши AI-ассистенты смогут автоматически искать нужные промпты, сохранять куски кода, доставать ключи и заполнять шаблоны прямо во время диалога!',
+    mcpTitle: 'Интеграция с Claude Desktop, Cursor и AI-агентами',
+    mcpSubtitle: 'Подключите DevFlow как MCP сервер к вашему любимому AI ассистенту, чтобы нейросеть могла искать промпты, запускать шаблоны и сохранять код напрямую в ваше хранилище.',
     mcpClaudeConfig: 'Конфигурация для Claude Desktop',
-    mcpCursorConfig: 'Конфигурация для Cursor / VS Code / Roo Code',
+    mcpCursorConfig: 'Конфигурация для Cursor / VS Code (Roo Code)',
     mcpToolsList: 'Доступные инструменты (MCP Tools):',
     copyConfig: 'Скопировать JSON конфиг',
     configCopied: 'Конфиг скопирован!',
   },
+
   en: {
     // Navigation & Header
     searchPlaceholder: 'Search prompts, code, notes...',
@@ -432,10 +463,10 @@ export const translations: Record<Language, Translations> = {
     enable2FA: 'Enable 2FA',
     twoFAActive: '2FA Active',
     settingsTitle: 'Settings & Security',
-    logOut: 'Log out',
-    confirmLogoutTitle: 'Log out',
-    confirmLogoutDesc: 'Are you sure you want to sign out of your vault?',
-    apiDocsBtn: 'API & MCP Docs',
+    logOut: 'Sign Out',
+    confirmLogoutTitle: 'Sign Out',
+    confirmLogoutDesc: 'Are you sure you want to sign out from your vault?',
+    apiDocsBtn: 'API & MCP Documentation',
 
     // Mobile Bottom Navigation
     mobileNavAll: 'All',
@@ -448,28 +479,28 @@ export const translations: Record<Language, Translations> = {
     vaultViews: 'Views',
     allItems: 'All Items',
     pinned: 'Pinned',
-    starred: 'Starred',
+    starred: 'Favorites',
     categories: 'Categories',
     prompts: 'AI Prompts',
     codeSnippets: 'Code Snippets',
     secrets: 'Secrets & Keys',
     notes: 'Notes',
     tags: 'Tags',
-    clearTag: 'Clear tag',
-    noTags: 'No tags yet. Auto-tags are created when pasting content.',
+    clearTag: 'Clear tag filter',
+    noTags: 'No tags yet. Created automatically on capture.',
 
     // Smart Capture
-    capturePlaceholder: 'Quick capture: paste a prompt, code snippet, or note...',
-    titlePlaceholder: 'Title (optional)...',
+    capturePlaceholder: 'Paste code, prompt, secret or note (auto-detected)...',
+    titlePlaceholder: 'Title (optional, auto-generated)...',
     saveToVault: 'Save',
     saving: 'Saving...',
     clearInput: 'Clear',
     saveShortcut: 'Ctrl+Enter to save',
-    addTagPlaceholder: '+ tag',
-    variables: 'Variables:',
-    typePrompt: 'AI Prompt',
+    addTagPlaceholder: 'tag...',
+    variables: 'Variables',
+    typePrompt: 'Prompt',
     typeCode: 'Code',
-    typeSecret: 'Secret',
+    typeSecret: 'Secret (AES-256)',
     typeNote: 'Note',
 
     // Feed & Cards
@@ -478,52 +509,66 @@ export const translations: Record<Language, Translations> = {
     copyAsMarkdown: 'Copy as Markdown',
     markdownCopied: 'Markdown copied!',
     duplicate: 'Duplicate',
-    duplicated: 'Snippet duplicated!',
+    duplicated: 'Duplicated',
     runTemplate: 'Run Template',
     reveal: 'Reveal',
     hide: 'Hide',
     unpin: 'Unpin',
-    pin: 'Pin to top',
-    removeFromFavorites: 'Remove from favorites',
+    pin: 'Pin',
+    removeFromFavorites: 'Remove favorite',
     addToFavorites: 'Add to favorites',
     edit: 'Edit',
     delete: 'Delete',
-    confirmDeleteTitle: 'Delete Item',
-    confirmDeleteDesc: 'Are you sure you want to delete this item? This cannot be undone.',
+    confirmDeleteTitle: 'Delete snippet?',
+    confirmDeleteDesc: 'This action will permanently delete this item from your vault.',
     itemDeleted: 'Item deleted',
-    savedToVault: 'Saved to Vault!',
-    updatedSuccessfully: 'Updated successfully!',
-    filteredBy: 'Filtered by:',
-    clearAll: 'Clear',
+    savedToVault: 'Saved to vault',
+    updatedSuccessfully: 'Snippet updated successfully',
+    filteredBy: 'Filter:',
+    clearAll: 'Clear all',
     pinnedOnly: 'Pinned',
-    starredOnly: 'Starred',
-    loadingSnippets: 'Loading snippets...',
-    vaultEmptyTitle: 'Your vault is empty',
-    vaultEmptySubtitle: 'Paste an AI prompt, code snippet, or note above to save your first item.',
-    noFilterMatchTitle: 'No items found',
-    noFilterMatchSubtitle: 'Try clearing your search query or adjusting your filters.',
+    starredOnly: 'Favorites',
+    loadingSnippets: 'Loading vault snippets...',
+    vaultEmptyTitle: 'Vault is empty',
+    vaultEmptySubtitle: 'Paste any snippet, prompt or secret in the box above — DevFlow will automatically classify type and tags!',
+    noFilterMatchTitle: 'No matches found',
+    noFilterMatchSubtitle: 'Try adjusting your search query or clearing active filters.',
     resetFilters: 'Reset filters',
     sortBy: 'Sort by:',
     sortNewest: 'Newest first',
     sortOldest: 'Oldest first',
 
-    // Guest Hero
-    heroTitle: 'Personal Knowledge Vault & Prompt Manager',
-    heroSubtitle: 'Stop saving AI prompts, code snippets, secrets, and notes in messy Telegram Saved Messages. DevFlow auto-detects code languages, extracts prompt variables, generates hashtags, and enables instant 1-click copying.',
-    getStarted: 'Get Started',
+    // Guest Hero & Global State
+    guestWelcomeTitle: 'Smart Personal Developer Vault',
+    guestWelcomeSubtitle: 'Store AI prompts, code snippets, encrypted API keys, and notes with auto-detection and real-time multi-device sync.',
+    loading: 'Loading...',
+    toastSaved: 'Saved to vault',
+    toastDeleted: 'Item deleted',
+    toastDuplicated: 'Snippet duplicated',
+    toastCopied: 'Copied to clipboard',
+    welcomeBack: 'Welcome back!',
+    twoFAActivated: '2FA successfully activated!',
+    vaultUpdated: 'Vault updated!',
+    confirmSignOutTitle: 'Sign Out',
+    confirmSignOutDesc: 'Are you sure you want to sign out?',
+    signOut: 'Sign Out',
+    signedOut: 'You have signed out',
 
     // Prompt Runner Modal
-    promptRunnerTitle: 'Run Prompt Template',
-    promptRunnerSubtitle: 'Fill in the parameters below to generate and copy your final AI prompt for ChatGPT, Claude, or Midjourney.',
-    renderedPreview: 'Rendered Preview:',
+    promptRunnerTitle: 'Run AI Prompt Template',
+    promptRunnerSubtitle: 'Fill prompt parameters to generate ready-to-use prompt',
+    renderedPreview: 'Rendered Prompt:',
     copyInterpolated: 'Copy Rendered Prompt',
     cancel: 'Cancel',
+    templateLabel: 'Template',
+    fillVariables: 'Template Parameters',
+    interpolatedPreview: 'Rendered Preview',
 
     // Auth Modal
-    signInTitle: 'Sign In to DevFlow',
-    signUpTitle: 'Create an Account',
-    twoFATitle: 'Two-Factor Verification',
-    twoFASubtitle: 'Enter the 6-digit code from Google Authenticator or an emergency backup code.',
+    signInTitle: 'Sign in to Vault',
+    signUpTitle: 'Create Account',
+    twoFATitle: 'Two-Factor Authentication',
+    twoFASubtitle: 'Enter the 6-digit code from your authenticator app',
     usernameOrEmail: 'Username or Email',
     username: 'Username',
     email: 'Email address',
@@ -531,107 +576,108 @@ export const translations: Record<Language, Translations> = {
     confirmPassword: 'Confirm Password',
     signInButton: 'Sign In',
     signUpButton: 'Create Account',
-    verifyButton: 'Verify',
+    verifyButton: 'Verify & Login',
     verifying: 'Verifying...',
     processing: 'Processing...',
     passwordsMismatch: 'Passwords do not match',
-    passwordWeak: 'Password does not meet security requirements',
+    passwordWeak: 'Password is too weak',
     strengthLabel: 'Password Strength:',
     strengthVeryWeak: 'Very Weak',
     strengthWeak: 'Weak',
     strengthFair: 'Fair',
     strengthGood: 'Good',
     strengthStrong: 'Strong',
-    reqMinLength: 'At least 8 characters',
+    reqMinLength: 'Min 8 characters',
     reqLower: 'Lowercase letter (a-z)',
     reqUpper: 'Uppercase letter (A-Z)',
     reqNumber: 'Number (0-9)',
 
     // 2FA Setup Modal
-    twoFASetupTitle: 'Set Up Two-Factor Authentication (2FA)',
-    twoFAScanSubtitle: 'Scan the QR code with Google Authenticator, 1Password, or Bitwarden on your phone.',
-    orManualKey: 'Or enter key manually:',
-    copyKey: 'Copy Key',
-    keyCopied: 'Key Copied',
-    enter6DigitCode: 'Enter 6-digit code from app:',
+    twoFASetupTitle: 'Setup 2FA Protection',
+    twoFABackupTitle: '2FA Emergency Backup Codes',
+    twoFAScanInstructions: 'Scan this QR code in your authenticator app (Google Authenticator, 1Password, 2FAS) or enter the key manually.',
+    manualEntryKey: 'Manual Secret Key',
+    enterCodeToVerify: 'Enter 6-digit code from app',
     activate2FA: 'Activate 2FA',
-    activating: 'Activating...',
-    backupCodesTitle: 'Save Emergency Backup Codes',
-    backupCodesWarning: 'Important: If you lose access to your authenticator app, these 8 backup codes are the ONLY way to access your vault.',
-    copyAllCodes: 'Copy All Codes',
-    codesCopied: 'Codes Copied!',
+    twoFABackupWarning: 'WARNING: Save these one-time backup codes securely. If you lose access to your authenticator device, they will allow you to regain access.',
+    copyCodes: 'Copy Codes',
     downloadTxt: 'Download .txt',
-    codesSavedConfirm: 'I have saved these backup codes',
+    savedDone: 'Codes Saved, Done',
 
     // Settings Modal
-    settingsModalTitle: 'Vault Settings & Security',
-    tabSecurity: '2FA Security',
+    tab2FA: '2FA Security',
     tabPassword: 'Password',
-    tabVault: 'Backup',
-    tabApi: 'REST API & MCP',
-    twoFAEnabledStatus: 'Two-Factor Authentication is Enabled',
-    twoFADisabledStatus: 'Two-Factor Authentication is Disabled',
-    twoFAEnabledDesc: 'Protected with Google Authenticator (TOTP)',
-    twoFADisabledDesc: 'Enable 2FA to protect your vault from unauthorized access',
-    disable2FAButton: 'Disable 2FA',
-    confirmDisableTitle: 'Confirm password to disable 2FA:',
-    confirmDisableButton: 'Confirm Disable',
+    tabVault: 'Backup & Restore',
+    tabApiMcp: 'API & MCP',
+    twoFAEnabledTitle: 'Two-Factor Authentication Active',
+    twoFADisabledTitle: 'Two-Factor Authentication Disabled',
+    twoFAEnabledDesc: 'Your account is protected with TOTP one-time codes.',
+    twoFADisabledDesc: 'Enable 2FA for maximum security of your secrets and keys.',
+    disable2FA: 'Disable 2FA',
+    confirmPasswordToDisable: 'Enter current password to disable',
+    confirmDisable: 'Confirm Disable',
+    enable2FAButton: 'Setup & Enable 2FA',
     currentPassword: 'Current Password',
     newPassword: 'New Password',
     confirmNewPassword: 'Confirm New Password',
-    updatePasswordButton: 'Update Password',
-    updating: 'Updating...',
-    passwordUpdated: 'Password updated successfully!',
-    exportTitle: 'Export Vault Backup',
-    exportSubtitle: 'Download complete JSON archive of all prompts, code, and notes',
-    exportButton: 'Export JSON',
-    importTitle: 'Import from Backup',
-    importSubtitle: 'Restore snippets from a JSON backup file',
-    importButton: 'Select File',
-    importSuccess: 'Successfully imported items:',
+    updatePassword: 'Update Password',
+    passwordChangedSuccess: 'Password changed successfully!',
+    vaultBackupDescription: 'Full backup and restore of all your snippets, prompts, and tags to/from a JSON file.',
+    exportJsonButton: 'Export to JSON',
+    importJsonButton: 'Import from JSON',
+    exporting: 'Exporting...',
+    importing: 'Importing...',
+    apiDocsIntro: 'DevFlow provides a REST API and Model Context Protocol (MCP) server for managing your vault directly from AI assistants (Claude Desktop, Cursor, VS Code).',
+    openFullApiDocs: 'Open Full REST API & MCP Documentation',
 
     // Profile Modal
-    profileTitle: 'Developer Profile',
-    userIdLabel: 'User ID:',
-    idCopied: 'ID Copied!',
-    copyId: 'Copy ID',
-    memberSince: 'DevFlow Member Since:',
-    securityStatus: 'Account Security:',
-    protectedBy2FA: 'Protected with 2FA (Google TOTP)',
-    unprotected2FA: '2FA is disabled (recommended to enable)',
-    setup2FANow: 'Enable 2FA',
-    developerRoleLabel: 'Specialization / Role:',
-    customAvatarColor: 'Avatar Accent:',
-    vaultSnapshot: 'Vault Snapshot:',
-    openSettingsBtn: 'Open Settings',
+    developerProfile: 'Developer Profile',
+    accentColor: 'Avatar Color',
+    roleTitle: 'Developer Role',
+    vaultStatistics: 'Vault Statistics',
+    code: 'Code',
+    pwaInstalledBadge: 'PWA App Installed',
+    installPwaButton: 'Install as PWA App',
+    pwaManualGuide: 'To install PWA: open browser menu (three dots or share) and select "Add to Home Screen".',
+    quickExportVault: 'Quick Export Vault (JSON)',
+    unprotected2FA: '2FA Disabled',
+
+    // Snippet Edit Modal
+    editSnippetTitle: 'Edit Snippet',
+    titleLabel: 'Title',
+    typeLabel: 'Snippet Type',
+    languageLabel: 'Language',
+    contentLabel: 'Content',
+    tagsLabel: 'Tags',
+    addTagInputPlaceholder: 'Add tag and press Enter...',
+    saveChanges: 'Save Changes',
 
     // API & MCP Docs Modal
-    apiDocsTitle: 'Integration: REST API & AI MCP Server',
-    apiDocsSubtitle: 'Manage DevFlow via REST API or connect directly to AI Agents (Claude Desktop, Cursor, Antigravity, VS Code, Roo Code).',
+    apiDocsTitle: 'REST API & Model Context Protocol (MCP)',
+    apiDocsSubtitle: 'Integrate your DevFlow vault with external tools and AI assistants.',
     tabRestApi: 'REST API',
     tabMcp: 'AI Agents (MCP Server)',
     apiBaseUrl: 'Base URL:',
-    apiAuthHeader: 'Auth Header:',
-    apiYourToken: 'Your active JWT token:',
+    apiAuthHeader: 'Authorization Header:',
+    apiYourToken: 'Your JWT Token:',
     apiCopyToken: 'Copy Token',
     apiTokenCopied: 'Token Copied!',
-    apiGroupAuth: 'Authentication & 2FA',
-    apiGroupSnippets: 'Snippets & Vault',
-    apiGroupPrompts: 'AI Prompts & Runner',
-    apiGroupVault: 'Export & Import',
-    apiGroupUtils: 'Utility Endpoints',
+    apiGroupAuth: 'Authentication',
+    apiGroupSnippets: 'Snippets & Search',
+    apiGroupPrompts: 'AI Prompts',
+    apiGroupVault: 'Export & Sync',
     apiExampleCurl: 'cURL',
     apiExampleJs: 'JavaScript (Fetch)',
     apiExamplePy: 'Python (Requests)',
-    apiResponse: 'Server Response (JSON):',
+    apiResponse: 'Example Response:',
     apiReqBody: 'Request Body (JSON):',
 
     // MCP Section
-    mcpTitle: 'Model Context Protocol (MCP) Server',
-    mcpSubtitle: 'DevFlow implements standard Model Context Protocol (JSON-RPC 2.0). Connect your AI models to search prompts, save code, retrieve secrets, and run templates in real-time!',
-    mcpClaudeConfig: 'Claude Desktop Configuration',
-    mcpCursorConfig: 'Cursor / VS Code / Roo Code Configuration',
-    mcpToolsList: 'Available AI Tools (MCP Tools):',
+    mcpTitle: 'Integrate with Claude Desktop, Cursor, and AI Agents',
+    mcpSubtitle: 'Connect DevFlow as an MCP server to your favorite AI assistant to search prompts, execute templates, and save code directly to your vault.',
+    mcpClaudeConfig: 'Configuration for Claude Desktop',
+    mcpCursorConfig: 'Configuration for Cursor / VS Code (Roo Code)',
+    mcpToolsList: 'Available MCP Tools:',
     copyConfig: 'Copy JSON Config',
     configCopied: 'Config Copied!',
   },

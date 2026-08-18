@@ -291,9 +291,11 @@ func (r *SnippetRepository) List(ctx context.Context, filter domain.SnippetFilte
 	}
 
 	if filter.Query != "" {
-		searchPattern := "%" + filter.Query + "%"
-		whereClauses = append(whereClauses, "(s.title LIKE ? OR s.content LIKE ? OR s.id IN (SELECT st.snippet_id FROM snippet_tags st JOIN tags t ON st.tag_id = t.id WHERE t.name LIKE ? AND t.user_id = ?))")
-		args = append(args, searchPattern, searchPattern, searchPattern, filter.UserID)
+		cleanQuery := strings.TrimSpace(filter.Query)
+		ftsQuery := `"` + strings.ReplaceAll(cleanQuery, `"`, `""`) + `"*`
+		searchPattern := "%" + cleanQuery + "%"
+		whereClauses = append(whereClauses, "(s.id IN (SELECT snippet_id FROM snippets_fts WHERE user_id = ? AND snippets_fts MATCH ?) OR s.title LIKE ? OR s.content LIKE ? OR s.id IN (SELECT st.snippet_id FROM snippet_tags st JOIN tags t ON st.tag_id = t.id WHERE t.name LIKE ? AND t.user_id = ?))")
+		args = append(args, filter.UserID, ftsQuery, searchPattern, searchPattern, searchPattern, filter.UserID)
 	}
 
 	whereSQL := strings.Join(whereClauses, " AND ")

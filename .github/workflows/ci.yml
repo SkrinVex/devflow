@@ -1,0 +1,94 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # 1. Frontend Test & Build
+  frontend:
+    name: Frontend Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: 'web/package-lock.json'
+
+      - name: Install Frontend Dependencies
+        working-directory: ./web
+        run: npm ci
+
+      - name: Build Web Assets
+        working-directory: ./web
+        run: npm run build
+
+      - name: Upload Web Dist Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist/
+          retention-days: 1
+
+  # 2. Go Backend Test Suite & Lint
+  backend:
+    name: Go Tests & Security Scan
+    runs-on: ubuntu-latest
+    needs: frontend
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Download Frontend Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: internal/assets/dist/
+
+      - name: Download Go Modules
+        run: go mod download
+
+      - name: Run Backend Unit & Integration Tests
+        run: go test -v -race -cover ./...
+
+      - name: Compile DevFlow Server & MCP Binaries
+        run: |
+          go build -ldflags="-s -w" -o devflow ./cmd/server
+          go build -ldflags="-s -w" -o devflow-mcp ./cmd/mcp
+
+  # 3. Docker Container Build Verification
+  docker:
+    name: Docker Image Build Test
+    runs-on: ubuntu-latest
+    needs: [frontend, backend]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: devflow:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

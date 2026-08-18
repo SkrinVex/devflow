@@ -50,8 +50,8 @@ func TestSQLiteRepo(t *testing.T) {
 	snippet := &domain.Snippet{
 		ID:         "s1",
 		UserID:     "u1",
-		Title:      "Test Prompt",
-		Content:    "Act as {{role}} and write {{code}}",
+		Title:      "Test Prompt Generator",
+		Content:    "Act as {{role}} and write {{code}} with concurrency patterns",
 		Type:       domain.SnippetTypePrompt,
 		Language:   "prompt",
 		Tags:       []string{"prompt", "ai", "generator"},
@@ -97,19 +97,31 @@ func TestSQLiteRepo(t *testing.T) {
 		t.Fatalf("Expected decrypted %q, got %q", secretPlaintext, retrievedSecret.Content)
 	}
 
-	// 4. List snippets
+	// 4. Test FTS5 Full-Text Search
+	ftsList, ftsTotal, err := snippetRepo.List(ctx, domain.SnippetFilter{
+		UserID: "u1",
+		Query:  "concurrency",
+	})
+	if err != nil || ftsTotal != 1 || len(ftsList) != 1 {
+		t.Fatalf("FTS5 search failed: total=%d, len=%d, err=%v", ftsTotal, len(ftsList), err)
+	}
+	if ftsList[0].ID != "s1" {
+		t.Fatalf("Expected snippet s1 from FTS search, got %s", ftsList[0].ID)
+	}
+
+	// 5. List all snippets
 	list, total, err := snippetRepo.List(ctx, domain.SnippetFilter{UserID: "u1"})
 	if err != nil || total != 2 || len(list) != 2 {
 		t.Fatalf("List error: total=%d, len=%d, err=%v", total, len(list), err)
 	}
 
-	// 5. Test Tags Query
+	// 6. Test Tags Query
 	tags, err := snippetRepo.GetAllUserTags(ctx, "u1")
 	if err != nil || len(tags) == 0 {
 		t.Fatalf("Expected tags, got %v, err=%v", tags, err)
 	}
 
-	// 6. Delete Snippet
+	// 7. Delete Snippet and verify FTS sync trigger
 	if err := snippetRepo.Delete(ctx, "s1", "u1"); err != nil {
 		t.Fatalf("Failed to delete snippet: %v", err)
 	}
@@ -117,5 +129,14 @@ func TestSQLiteRepo(t *testing.T) {
 	_, err = snippetRepo.GetByID(ctx, "s1", "u1")
 	if err != domain.ErrNotFound {
 		t.Fatalf("Expected ErrNotFound, got %v", err)
+	}
+
+	// Verify deleted snippet is also removed from FTS5 index
+	ftsAfterDelete, _, err := snippetRepo.List(ctx, domain.SnippetFilter{
+		UserID: "u1",
+		Query:  "concurrency",
+	})
+	if err != nil || len(ftsAfterDelete) != 0 {
+		t.Fatalf("Expected 0 results from FTS after delete, got %d", len(ftsAfterDelete))
 	}
 }

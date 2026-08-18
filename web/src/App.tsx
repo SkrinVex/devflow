@@ -1,599 +1,319 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { LanguageProvider, useI18n } from './context/LanguageContext';
-import { Navbar } from './components/Navbar';
-import { TagSidebar } from './components/TagSidebar';
-import { SmartCapture } from './components/SmartCapture';
-import { SnippetCard } from './components/SnippetCard';
-import { PromptRunnerModal } from './components/PromptRunnerModal';
-import { SnippetEditModal } from './components/SnippetEditModal';
-import { AuthModal } from './components/AuthModal';
-import { TwoFASetupModal } from './components/TwoFASetupModal';
-import { SettingsModal } from './components/SettingsModal';
-import type { SettingsTab } from './components/SettingsModal';
-import { ProfileModal } from './components/ProfileModal';
-import { ApiDocsModal } from './components/ApiDocsModal';
-import { ConfirmModal } from './components/ConfirmModal';
-import type { Snippet, SnippetType, TagCount } from './types';
-import { api } from './lib/api';
-import { 
-  Layers, 
-  Inbox, 
-  X,
-  Filter,
-  Sparkles,
-  Code,
-  KeyRound,
-  FileText,
-  Hash
-} from 'lucide-react';
 
-const DevFlowApp: React.FC = () => {
+import { Navbar } from './components/layout/Navbar';
+import { Sidebar } from './components/layout/Sidebar';
+import { MobileBottomNav } from './components/layout/MobileBottomNav';
+import { SmartCapture } from './components/snippets/SmartCapture';
+import { SnippetList } from './components/snippets/SnippetList';
+import { Toast } from './components/ui/Toast';
+
+import { AuthModal } from './components/modals/AuthModal';
+import { TwoFASetupModal } from './components/modals/TwoFASetupModal';
+import { SettingsModal } from './components/modals/SettingsModal';
+import type { SettingsTab } from './components/modals/SettingsModal';
+import { ProfileModal } from './components/modals/ProfileModal';
+import { ApiDocsModal } from './components/modals/ApiDocsModal';
+import { PromptRunnerModal } from './components/modals/PromptRunnerModal';
+import { SnippetEditModal } from './components/modals/SnippetEditModal';
+import { ConfirmModal } from './components/modals/ConfirmModal';
+
+import { useToast } from './hooks/useToast';
+import { useSnippets } from './hooks/useSnippets';
+import { useWebSocket } from './hooks/useWebSocket';
+import type { Snippet, WebSocketEvent } from './types';
+
+const MainApp: React.FC = () => {
   const { isAuthenticated, loading: authLoading, logout } = useAuth();
   const { t } = useI18n();
+  const { toasts, showToast, removeToast } = useToast();
 
-  // Filter states
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeType, setActiveType] = useState<SnippetType | ''>('');
-  const [activeTag, setActiveTag] = useState('');
-  const [onlyPinned, setOnlyPinned] = useState(false);
-  const [onlyFavorites, setOnlyFavorites] = useState(false);
-  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
-
-  // Data states
-  const [snippets, setSnippets] = useState<Snippet[]>([]);
-  const [totalSnippets, setTotalSnippets] = useState(0);
-  const [tags, setTags] = useState<TagCount[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Snippets Hook
+  const {
+    snippets,
+    setSnippets,
+    totalSnippets,
+    setTotalSnippets,
+    tags,
+    loading: snippetsLoading,
+    searchQuery,
+    setSearchQuery,
+    activeType,
+    setActiveType,
+    activeTag,
+    setActiveTag,
+    onlyPinned,
+    setOnlyPinned,
+    onlyFavorites,
+    setOnlyFavorites,
+    sortOrder,
+    setSortOrder,
+    loadSnippets,
+    loadTags,
+    togglePin,
+    toggleFavorite,
+    deleteSnippet,
+    duplicateSnippet,
+    clearFilters,
+  } = useSnippets(isAuthenticated);
 
   // Modals state
   const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [is2FASetupOpen, setIs2FASetupOpen] = useState(false);
+  const [is2FAOpen, setIs2FAOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<SettingsTab>('security');
+  const [settingsDefaultTab, setSettingsDefaultTab] = useState<SettingsTab>('security');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isApiDocsOpen, setIsApiDocsOpen] = useState(false);
-  const [promptRunnerSnippet, setPromptRunnerSnippet] = useState<Snippet | null>(null);
-  const [editingSnippet, setEditingSnippet] = useState<Snippet | null>(null);
+  const [activePromptRunner, setActivePromptRunner] = useState<Snippet | null>(null);
+  const [activeSnippetEdit, setActiveSnippetEdit] = useState<Snippet | null>(null);
 
-  // Styled Confirmation Modal for Delete & Logout
-  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
-  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
+  // Confirm dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    confirmText?: string;
+    isDanger?: boolean;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    onConfirm: () => {},
+  });
 
-  // Toast notification
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 2200);
-  };
-
-  // Fetch snippets
-  const loadSnippets = useCallback(async () => {
-    if (!isAuthenticated) return;
-    setLoading(true);
-    try {
-      const res = await api.listSnippets({
-        q: searchQuery || undefined,
-        type: activeType || undefined,
-        tag: activeTag || undefined,
-        is_pinned: onlyPinned ? true : undefined,
-        is_favorite: onlyFavorites ? true : undefined,
-        limit: 100,
-      });
-      let items = res.items || [];
-      if (sortOrder === 'oldest') {
-        items = [...items].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      }
-      setSnippets(items);
-      setTotalSnippets(res.total || 0);
-    } catch (err: any) {
-      console.error('Failed to load snippets', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [isAuthenticated, searchQuery, activeType, activeTag, onlyPinned, onlyFavorites, sortOrder]);
-
-  // Fetch tags
-  const loadTags = useCallback(async () => {
-    if (!isAuthenticated) return;
-    try {
-      const res = await api.getTags();
-      setTags(res || []);
-    } catch (err) {
-      console.error('Failed to load tags', err);
-    }
-  }, [isAuthenticated]);
-
+  // Initial load
   useEffect(() => {
     if (isAuthenticated) {
       loadSnippets();
       loadTags();
-    } else {
-      setSnippets([]);
-      setTags([]);
-      setTotalSnippets(0);
     }
   }, [isAuthenticated, loadSnippets, loadTags]);
 
-  // Keep stable refs to avoid reconnecting WebSocket when filter state changes
+  // Keep stable refs for WebSocket live sync
   const loadSnippetsRef = useRef(loadSnippets);
   loadSnippetsRef.current = loadSnippets;
-
   const loadTagsRef = useRef(loadTags);
   loadTagsRef.current = loadTags;
 
-  // Real-Time Multi-Device Sync via WebSocket (Connected once per session)
-  useEffect(() => {
-    if (!isAuthenticated) return;
+  // Real-Time Multi-Device Sync over Gorilla WebSocket
+  const handleWebSocketEvent = useCallback((event: WebSocketEvent) => {
+    if (!event || !event.type || event.type === 'connected') return;
 
-    const token = localStorage.getItem('devflow_token');
-    if (!token) return;
-
-    let ws: WebSocket | null = null;
-    let reconnectTimeout: any = null;
-    let isSubscribed = true;
-
-    const connectWS = () => {
-      if (!isSubscribed) return;
-
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/api/v1/ws?token=${encodeURIComponent(token)}`;
-
-      try {
-        ws = new WebSocket(wsUrl);
-
-        ws.onopen = () => {
-          // WebSocket connected
-        };
-
-        ws.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            if (!data || !data.type || data.type === 'connected') return;
-
-            // 1. Instant optimistic DOM state update (0ms latency across devices)
-            if (data.type === 'snippet:deleted' && data.payload?.id) {
-              setSnippets((prev) => prev.filter((s) => s.id !== data.payload.id));
-              setTotalSnippets((prev) => Math.max(0, prev - 1));
-            } else if (data.type === 'snippet:created' && data.payload?.id) {
-              setSnippets((prev) => [data.payload, ...prev.filter((s) => s.id !== data.payload.id)]);
-              setTotalSnippets((prev) => prev + 1);
-            } else if ((data.type === 'snippet:updated' || data.type === 'snippet:pinned' || data.type === 'snippet:favorited') && data.payload?.id) {
-              setSnippets((prev) => prev.map((s) => s.id === data.payload.id ? data.payload : s));
-            }
-
-            // 2. Full background re-sync to ensure exact ordering and tags
-            if (loadSnippetsRef.current) loadSnippetsRef.current();
-            if (loadTagsRef.current) loadTagsRef.current();
-          } catch {
-            // ignore
-          }
-        };
-
-        ws.onclose = () => {
-          if (isSubscribed) {
-            // Auto reconnect after 2 seconds
-            reconnectTimeout = setTimeout(connectWS, 2000);
-          }
-        };
-
-        ws.onerror = () => {
-          ws?.close();
-        };
-      } catch (err) {
-        if (isSubscribed) {
-          reconnectTimeout = setTimeout(connectWS, 3000);
-        }
-      }
-    };
-
-    connectWS();
-
-    return () => {
-      isSubscribed = false;
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
-      if (ws) ws.close();
-    };
-  }, [isAuthenticated]);
-
-  const handleTogglePin = async (id: string) => {
-    try {
-      await api.togglePin(id);
-      loadSnippets();
-    } catch (err: any) {
-      showToast('Error: ' + err.message);
+    // 1. Instant 0ms Optimistic DOM State Updates
+    if (event.type === 'snippet:deleted' && event.payload?.id) {
+      setSnippets((prev) => prev.filter((s) => s.id !== event.payload.id));
+      setTotalSnippets((prev) => Math.max(0, prev - 1));
+      showToast(t.toastDeleted, 'default');
+    } else if (event.type === 'snippet:created' && event.payload?.id) {
+      setSnippets((prev) => [event.payload, ...prev.filter((s) => s.id !== event.payload.id)]);
+      setTotalSnippets((prev) => prev + 1);
+      showToast(t.toastSaved, 'success');
+    } else if ((event.type === 'snippet:updated' || event.type === 'snippet:pinned' || event.type === 'snippet:favorited') && event.payload?.id) {
+      setSnippets((prev) => prev.map((s) => (s.id === event.payload.id ? event.payload : s)));
     }
+
+    // 2. Full background re-sync
+    if (loadSnippetsRef.current) loadSnippetsRef.current();
+    if (loadTagsRef.current) loadTagsRef.current();
+  }, [showToast, t.toastDeleted, t.toastSaved, setSnippets, setTotalSnippets]);
+
+  useWebSocket({
+    isAuthenticated,
+    onEvent: handleWebSocketEvent,
+  });
+
+  const handleCopyToast = () => {
+    showToast(t.toastCopied, 'success');
   };
 
-  const handleToggleFavorite = async (id: string) => {
-    try {
-      await api.toggleFavorite(id);
-      loadSnippets();
-    } catch (err: any) {
-      showToast('Error: ' + err.message);
-    }
+  const handleRequestDelete = (id: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: t.confirmDeleteTitle,
+      description: t.confirmDeleteDesc,
+      confirmText: t.delete,
+      isDanger: true,
+      onConfirm: () => {
+        deleteSnippet(id);
+        showToast(t.toastDeleted, 'default');
+      },
+    });
   };
 
-  const handleConfirmDelete = async () => {
-    if (!deleteTargetId) return;
-    try {
-      await api.deleteSnippet(deleteTargetId);
-      showToast(t.itemDeleted);
-      loadSnippets();
-      loadTags();
-    } catch (err: any) {
-      showToast('Error: ' + err.message);
-    } finally {
-      setDeleteTargetId(null);
-    }
+  const handleRequestLogout = () => {
+    setConfirmDialog({
+      isOpen: true,
+      title: t.confirmSignOutTitle,
+      description: t.confirmSignOutDesc,
+      confirmText: t.signOut,
+      isDanger: true,
+      onConfirm: async () => {
+        await logout();
+        showToast(t.signedOut, 'default');
+      },
+    });
   };
 
-  const handleDuplicate = async (snippet: Snippet) => {
-    try {
-      await api.createSnippet({
-        title: `${snippet.title} (copy)`,
-        content: snippet.content,
-        type: snippet.type,
-        language: snippet.language,
-        tags: snippet.tags,
-      });
-      showToast(t.duplicated);
-      loadSnippets();
-      loadTags();
-    } catch (err: any) {
-      showToast('Error duplicating: ' + err.message);
-    }
-  };
-
-  const handleOpenSettingsWithTab = (tab?: SettingsTab) => {
-    if (tab) setSettingsTab(tab);
+  const handleOpenSettingsTab = (tab: SettingsTab) => {
+    setSettingsDefaultTab(tab);
     setIsSettingsOpen(true);
   };
 
-  const clearAllFilters = () => {
-    setSearchQuery('');
-    setActiveType('');
-    setActiveTag('');
-    setOnlyPinned(false);
-    setOnlyFavorites(false);
-  };
-
-  const hasActiveFilters = searchQuery || activeType || activeTag || onlyPinned || onlyFavorites;
-
   if (authLoading) {
     return (
-      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-main)' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '18px', fontWeight: '700', fontFamily: 'monospace', marginBottom: '4px' }}>devflow</div>
-          <div style={{ fontSize: '12px', color: 'var(--text-dim)' }}>loading...</div>
-        </div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)', color: 'var(--text-dim)', fontSize: '13px' }}>
+        {t.loading}
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div style={{
-          position: 'fixed',
-          bottom: '70px',
-          right: '16px',
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border)',
-          color: 'var(--text)',
-          padding: '8px 14px',
-          borderRadius: 'var(--radius-sm)',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
-          zIndex: 1000,
-          fontSize: '12.5px',
-          fontWeight: '500',
-        }}>
-          {toastMessage}
-        </div>
-      )}
-
-      {/* Main Navbar */}
+    <div className="app-container">
+      
+      {/* Fixed Header Navbar */}
       <Navbar
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        activeType={activeType}
-        onTypeChange={setActiveType}
         onOpenAuth={() => setIsAuthOpen(true)}
-        onOpenSettings={handleOpenSettingsWithTab}
         onOpenProfile={() => setIsProfileOpen(true)}
+        onOpenSettings={() => handleOpenSettingsTab('security')}
+        onOpen2FASetup={() => setIs2FAOpen(true)}
+        onOpenApiDocs={() => setIsApiDocsOpen(true)}
+        onTypeChange={setActiveType}
       />
 
-      <div className="app-container">
-        {/* Sidebar (Desktop) */}
-        {isAuthenticated && (
-          <TagSidebar
-            activeType={activeType}
-            onTypeChange={setActiveType}
-            activeTag={activeTag}
-            onTagChange={setActiveTag}
-            onlyPinned={onlyPinned}
-            onToggleOnlyPinned={() => setOnlyPinned(!onlyPinned)}
-            onlyFavorites={onlyFavorites}
-            onToggleOnlyFavorites={() => setOnlyFavorites(!onlyFavorites)}
-            tags={tags}
-            totalSnippets={totalSnippets}
-          />
-        )}
+      {/* Fixed Desktop Sidebar */}
+      <Sidebar
+        activeType={activeType}
+        onTypeChange={setActiveType}
+        activeTag={activeTag}
+        onTagChange={setActiveTag}
+        onlyPinned={onlyPinned}
+        onToggleOnlyPinned={() => setOnlyPinned(!onlyPinned)}
+        onlyFavorites={onlyFavorites}
+        onToggleOnlyFavorites={() => setOnlyFavorites(!onlyFavorites)}
+        tags={tags}
+        totalSnippets={totalSnippets}
+      />
 
-        {/* Main Content Area */}
-        <main className="main-content">
-          <div className="content-wrapper">
-            
-            {/* Guest View */}
-            {!isAuthenticated ? (
-              <div className="panel-card" style={{ padding: '32px 20px', textAlign: 'center', marginTop: '12px' }}>
-                <div style={{
-                  width: '44px',
-                  height: '44px',
-                  borderRadius: 'var(--radius-sm)',
-                  background: 'var(--bg-subtle)',
-                  border: '1px solid var(--border)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: '14px',
-                  color: 'var(--text)'
-                }}>
-                  <Layers size={22} />
-                </div>
-                <h1 style={{ fontSize: '19px', fontWeight: '700', marginBottom: '8px', letterSpacing: '-0.3px' }}>
-                  {t.heroTitle}
-                </h1>
-                <p style={{ fontSize: '13px', color: 'var(--text-muted)', maxWidth: '500px', margin: '0 auto 18px auto', lineHeight: '1.5' }}>
-                  {t.heroSubtitle}
-                </p>
-                <div style={{ display: 'flex', justifyContent: 'center' }}>
-                  <button className="btn btn-primary" onClick={() => setIsAuthOpen(true)}>
-                    {t.getStarted}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                {/* Mobile Horizontal Scrolling Tags Bar */}
-                {tags.length > 0 && (
-                  <div 
-                    className="mobile-tags-bar" 
-                    style={{ 
-                      gap: '5px', 
-                      overflowX: 'auto', 
-                      paddingBottom: '8px', 
-                      marginBottom: '8px',
-                      WebkitOverflowScrolling: 'touch',
-                      scrollbarWidth: 'none',
-                    }}
-                  >
-                    {tags.map((tagItem) => (
-                      <span
-                        key={tagItem.name}
-                        className={`tag-chip ${activeTag.toLowerCase() === tagItem.name.toLowerCase() ? 'active' : ''}`}
-                        onClick={() => setActiveTag(activeTag === tagItem.name ? '' : tagItem.name)}
-                        style={{ fontSize: '11.5px', padding: '3px 8px' }}
-                      >
-                        <Hash size={10} />
-                        <span>{tagItem.name}</span>
-                        <span style={{ fontSize: '9.5px', opacity: 0.6, marginLeft: '2px' }}>{tagItem.count}</span>
-                      </span>
-                    ))}
-                  </div>
-                )}
+      {/* Main Content Feed */}
+      <main className="main-content">
+        <div className="content-wrapper">
+          
+          {/* Quick Capture Box (Only if authenticated) */}
+          {isAuthenticated && (
+            <SmartCapture
+              onSnippetCreated={() => {
+                loadSnippets();
+                loadTags();
+                showToast(t.toastSaved, 'success');
+              }}
+            />
+          )}
 
-                {/* Smart Quick Capture Box */}
-                <SmartCapture
-                  onSnippetCreated={() => {
-                    showToast(t.savedToVault);
-                    loadSnippets();
-                    loadTags();
-                  }}
-                />
+          {/* Unauthenticated Landing / Sign In Hero */}
+          {!isAuthenticated && (
+            <div className="panel-card" style={{ padding: '36px 20px', textAlign: 'center', marginBottom: '20px' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '8px', color: 'var(--text)' }}>
+                {t.guestWelcomeTitle}
+              </h2>
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)', maxWidth: '480px', margin: '0 auto 18px auto', lineHeight: '1.5' }}>
+                {t.guestWelcomeSubtitle}
+              </p>
+              <button
+                className="btn btn-primary"
+                onClick={() => setIsAuthOpen(true)}
+                style={{ padding: '8px 20px', fontSize: '13.5px' }}
+              >
+                {t.signInRegister}
+              </button>
+            </div>
+          )}
 
-                {/* Filter & Sort Bar */}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginBottom: '10px',
-                  flexWrap: 'wrap',
-                  gap: '6px',
-                }}>
-                  {hasActiveFilters ? (
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      padding: '3px 7px',
-                      background: 'var(--bg-surface)',
-                      borderRadius: 'var(--radius-xs)',
-                      border: '1px solid var(--border)',
-                      fontSize: '11px',
-                    }}>
-                      <Filter size={11} color="var(--text-muted)" />
-                      {searchQuery && (
-                        <span className="tag-chip">
-                          "{searchQuery}"
-                          <X size={10} style={{ cursor: 'pointer' }} onClick={() => setSearchQuery('')} />
-                        </span>
-                      )}
-                      {activeType && (
-                        <span className="tag-chip">
-                          {activeType}
-                          <X size={10} style={{ cursor: 'pointer' }} onClick={() => setActiveType('')} />
-                        </span>
-                      )}
-                      {activeTag && (
-                        <span className="tag-chip">
-                          #{activeTag}
-                          <X size={10} style={{ cursor: 'pointer' }} onClick={() => setActiveTag('')} />
-                        </span>
-                      )}
-                      {onlyPinned && (
-                        <span className="tag-chip">
-                          {t.pinnedOnly}
-                          <X size={10} style={{ cursor: 'pointer' }} onClick={() => setOnlyPinned(false)} />
-                        </span>
-                      )}
-                      {onlyFavorites && (
-                        <span className="tag-chip">
-                          {t.starredOnly}
-                          <X size={10} style={{ cursor: 'pointer' }} onClick={() => setOnlyFavorites(false)} />
-                        </span>
-                      )}
-                      <button
-                        onClick={clearAllFilters}
-                        style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: '10.5px', marginLeft: '2px' }}
-                      >
-                        {t.clearAll}
-                      </button>
-                    </div>
-                  ) : <div />}
+          {/* Snippet Feed List */}
+          {isAuthenticated && (
+            <SnippetList
+              snippets={snippets}
+              loading={snippetsLoading}
+              searchQuery={searchQuery}
+              activeType={activeType}
+              activeTag={activeTag}
+              onlyPinned={onlyPinned}
+              onlyFavorites={onlyFavorites}
+              sortOrder={sortOrder}
+              onSearchChange={setSearchQuery}
+              onTypeChange={setActiveType}
+              onTagChange={setActiveTag}
+              onToggleOnlyPinned={() => setOnlyPinned(!onlyPinned)}
+              onToggleOnlyFavorites={() => setOnlyFavorites(!onlyFavorites)}
+              onSortChange={setSortOrder}
+              onClearFilters={clearFilters}
+              onCopy={handleCopyToast}
+              onTogglePin={togglePin}
+              onToggleFavorite={toggleFavorite}
+              onEdit={(s) => setActiveSnippetEdit(s)}
+              onDelete={handleRequestDelete}
+              onDuplicate={(s) => {
+                duplicateSnippet(s);
+                showToast(t.toastDuplicated, 'success');
+              }}
+              onRunPrompt={(s) => setActivePromptRunner(s)}
+            />
+          )}
+        </div>
+      </main>
 
-                  {/* Sort Order Selector */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginLeft: 'auto' }}>
-                    <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>{t.sortBy}</span>
-                    <select
-                      className="tag-chip"
-                      style={{ outline: 'none', cursor: 'pointer', padding: '3px 6px', fontSize: '11px' }}
-                      value={sortOrder}
-                      onChange={(e) => setSortOrder(e.target.value as 'newest' | 'oldest')}
-                    >
-                      <option value="newest">{t.sortNewest}</option>
-                      <option value="oldest">{t.sortOldest}</option>
-                    </select>
-                  </div>
-                </div>
+      {/* Fixed Mobile Bottom Bar */}
+      <MobileBottomNav
+        activeType={activeType}
+        onTypeChange={setActiveType}
+      />
 
-                {/* Feed List */}
-                {loading ? (
-                  <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-dim)', fontSize: '13px' }}>
-                    {t.loadingSnippets}
-                  </div>
-                ) : snippets.length === 0 ? (
-                  <div className="panel-card" style={{ padding: '36px 18px', textAlign: 'center' }}>
-                    <Inbox size={30} color="var(--text-dim)" style={{ marginBottom: '8px' }} />
-                    <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px' }}>
-                      {hasActiveFilters ? t.noFilterMatchTitle : t.vaultEmptyTitle}
-                    </h3>
-                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', maxWidth: '360px', margin: '0 auto 12px auto' }}>
-                      {hasActiveFilters ? t.noFilterMatchSubtitle : t.vaultEmptySubtitle}
-                    </p>
-                    {hasActiveFilters && (
-                      <button className="btn btn-secondary" onClick={clearAllFilters} style={{ fontSize: '11.5px' }}>
-                        {t.resetFilters}
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    {snippets.map((snippet) => (
-                      <SnippetCard
-                        key={snippet.id}
-                        snippet={snippet}
-                        onCopy={() => showToast(t.copied)}
-                        onTogglePin={handleTogglePin}
-                        onToggleFavorite={handleToggleFavorite}
-                        onDuplicate={handleDuplicate}
-                        onEdit={(s) => setEditingSnippet(s)}
-                        onDelete={(id) => setDeleteTargetId(id)}
-                        onRunPrompt={(s) => setPromptRunnerSnippet(s)}
-                        onTagClick={(tag) => setActiveTag(tag)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </main>
-      </div>
+      {/* Floating Toast Notifications */}
+      <Toast toasts={toasts} onRemove={removeToast} />
 
-      {/* Mobile Bottom Navigation Bar for Android/iOS with concise labels */}
-      {isAuthenticated && (
-        <nav className="mobile-bottom-bar">
-          <button
-            className={`mobile-nav-btn ${activeType === '' ? 'active' : ''}`}
-            onClick={() => setActiveType('')}
-          >
-            <Layers size={17} />
-            <span>{t.mobileNavAll}</span>
-          </button>
-          <button
-            className={`mobile-nav-btn ${activeType === 'prompt' ? 'active' : ''}`}
-            onClick={() => setActiveType('prompt')}
-          >
-            <Sparkles size={17} />
-            <span>{t.mobileNavPrompts}</span>
-          </button>
-          <button
-            className={`mobile-nav-btn ${activeType === 'code' ? 'active' : ''}`}
-            onClick={() => setActiveType('code')}
-          >
-            <Code size={17} />
-            <span>{t.mobileNavCode}</span>
-          </button>
-          <button
-            className={`mobile-nav-btn ${activeType === 'secret' ? 'active' : ''}`}
-            onClick={() => setActiveType('secret')}
-          >
-            <KeyRound size={17} />
-            <span>{t.mobileNavSecrets}</span>
-          </button>
-          <button
-            className={`mobile-nav-btn ${activeType === 'note' ? 'active' : ''}`}
-            onClick={() => setActiveType('note')}
-          >
-            <FileText size={17} />
-            <span>{t.mobileNavNotes}</span>
-          </button>
-        </nav>
-      )}
-
-      {/* Modals */}
+      {/* Feature Modals */}
       <AuthModal
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
         onSuccess={() => {
           loadSnippets();
           loadTags();
+          showToast(t.welcomeBack, 'success');
         }}
       />
 
       <TwoFASetupModal
-        isOpen={is2FASetupOpen}
-        onClose={() => setIs2FASetupOpen(false)}
+        isOpen={is2FAOpen}
+        onClose={() => setIs2FAOpen(false)}
         onSuccess={() => {
-          showToast(t.twoFAActive);
+          showToast(t.twoFAActivated, 'success');
         }}
       />
 
       <SettingsModal
         isOpen={isSettingsOpen}
-        defaultTab={settingsTab}
+        defaultTab={settingsDefaultTab}
         onClose={() => setIsSettingsOpen(false)}
-        onOpen2FASetup={() => setIs2FASetupOpen(true)}
+        onOpen2FASetup={() => setIs2FAOpen(true)}
         onOpenApiDocs={() => setIsApiDocsOpen(true)}
         onVaultChanged={() => {
           loadSnippets();
           loadTags();
+          showToast(t.vaultUpdated, 'success');
         }}
       />
 
       <ProfileModal
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
-        onOpenSettings={() => {
-          setSettingsTab('security');
-          setIsSettingsOpen(true);
-        }}
-        onOpen2FA={() => setIs2FASetupOpen(true)}
+        onOpenSettings={() => handleOpenSettingsTab('security')}
+        onOpen2FA={() => setIs2FAOpen(true)}
         onOpenApiDocs={() => setIsApiDocsOpen(true)}
-        onRequestLogout={() => setIsLogoutConfirmOpen(true)}
+        onRequestLogout={handleRequestLogout}
       />
 
       <ApiDocsModal
@@ -602,54 +322,44 @@ const DevFlowApp: React.FC = () => {
       />
 
       <PromptRunnerModal
-        snippet={promptRunnerSnippet}
-        onClose={() => setPromptRunnerSnippet(null)}
+        snippet={activePromptRunner}
+        onClose={() => setActivePromptRunner(null)}
       />
 
       <SnippetEditModal
-        snippet={editingSnippet}
-        isOpen={!!editingSnippet}
-        onClose={() => setEditingSnippet(null)}
+        snippet={activeSnippetEdit}
+        isOpen={!!activeSnippetEdit}
+        onClose={() => setActiveSnippetEdit(null)}
         onSuccess={() => {
-          showToast(t.updatedSuccessfully);
           loadSnippets();
           loadTags();
+          showToast(t.toastSaved, 'success');
         }}
       />
 
-      {/* Styled Delete Confirmation Dialog */}
       <ConfirmModal
-        isOpen={!!deleteTargetId}
-        title={t.confirmDeleteTitle}
-        description={t.confirmDeleteDesc}
-        confirmText={t.delete}
-        isDanger={true}
-        onConfirm={handleConfirmDelete}
-        onClose={() => setDeleteTargetId(null)}
-      />
-
-      {/* Styled Logout Confirmation Dialog */}
-      <ConfirmModal
-        isOpen={isLogoutConfirmOpen}
-        title={t.confirmLogoutTitle}
-        description={t.confirmLogoutDesc}
-        confirmText={t.logOut}
-        isDanger={false}
-        onConfirm={logout}
-        onClose={() => setIsLogoutConfirmOpen(false)}
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        description={confirmDialog.description}
+        confirmText={confirmDialog.confirmText}
+        isDanger={confirmDialog.isDanger}
+        onClose={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmDialog.onConfirm}
       />
     </div>
   );
 };
 
-export const App: React.FC = () => {
+export function App() {
   return (
-    <LanguageProvider>
-      <AuthProvider>
-        <DevFlowApp />
-      </AuthProvider>
-    </LanguageProvider>
+    <ThemeProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <MainApp />
+        </AuthProvider>
+      </LanguageProvider>
+    </ThemeProvider>
   );
-};
+}
 
 export default App;

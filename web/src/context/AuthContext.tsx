@@ -1,14 +1,14 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import type { UserProfile, AuthResponse } from '../types';
-import { api } from '../lib/api';
+import type { User, AuthResponse } from '../types';
+import { api } from '../services/api';
 
 interface AuthContextType {
-  user: UserProfile | null;
+  user: User | null;
   loading: boolean;
   isAuthenticated: boolean;
   requires2FA: boolean;
   tempToken: string | null;
-  login: (username: string, password: string, code2fa?: string) => Promise<AuthResponse>;
+  login: (loginStr: string, password: string) => Promise<AuthResponse>;
   verify2FA: (code: string) => Promise<void>;
   cancel2FA: () => void;
   register: (username: string, email: string, password: string) => Promise<AuthResponse>;
@@ -19,23 +19,25 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<UserProfile | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [requires2FA, setRequires2FA] = useState<boolean>(false);
   const [tempToken, setTempToken] = useState<string | null>(null);
 
   const refreshUser = async () => {
+    const token = localStorage.getItem('devflow_token');
+    if (!token) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+
     try {
-      if (!api.getToken()) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
       const profile = await api.getMe();
       setUser(profile);
     } catch {
       setUser(null);
-      api.setToken(null);
+      localStorage.removeItem('devflow_token');
     } finally {
       setLoading(false);
     }
@@ -43,14 +45,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     refreshUser();
+
+    const handleUnauthorized = () => {
+      setUser(null);
+      setRequires2FA(false);
+      setTempToken(null);
+    };
+
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
   }, []);
 
-  const login = async (username: string, password: string, code2fa?: string): Promise<AuthResponse> => {
-    const res = await api.login({ username, password, code_2fa: code2fa });
+  const login = async (loginStr: string, password: string): Promise<AuthResponse> => {
+    const res = await api.login({ login: loginStr, password });
     if (res.requires_2fa && res.temp_token) {
       setRequires2FA(true);
       setTempToken(res.temp_token);
       return res;
+    }
+
+    if (res.token) {
+      localStorage.setItem('devflow_token', res.token);
     }
 
     setRequires2FA(false);
@@ -66,6 +81,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const verify2FA = async (code: string): Promise<void> => {
     if (!tempToken) throw new Error('No 2FA challenge active');
     const res = await api.verify2FATemp(tempToken, code);
+    if (res.token) {
+      localStorage.setItem('devflow_token', res.token);
+    }
     setRequires2FA(false);
     setTempToken(null);
     if (res.user) {
@@ -82,6 +100,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const register = async (username: string, email: string, password: string): Promise<AuthResponse> => {
     const res = await api.register({ username, email, password });
+    if (res.token) {
+      localStorage.setItem('devflow_token', res.token);
+    }
     if (res.user) {
       setUser(res.user);
     } else {
@@ -94,6 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await api.logout();
     } finally {
+      localStorage.removeItem('devflow_token');
       setUser(null);
       setRequires2FA(false);
       setTempToken(null);
