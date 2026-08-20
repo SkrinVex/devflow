@@ -60,6 +60,8 @@ func (r *Router) SetupRoutes() http.Handler {
 	// Public Auth endpoints
 	mux.HandleFunc("POST /api/v1/auth/register", authHandler.Register)
 	mux.HandleFunc("POST /api/v1/auth/login", authHandler.Login)
+	mux.HandleFunc("POST /api/v1/auth/forgot-password", authHandler.ForgotPassword)
+	mux.HandleFunc("POST /api/v1/auth/reset-password", authHandler.ResetPassword)
 	mux.HandleFunc("POST /api/v1/auth/2fa/verify-temp", authHandler.Verify2FATemp)
 	mux.HandleFunc("POST /api/v1/auth/check-password", authHandler.CheckPasswordStrength)
 	mux.HandleFunc("POST /api/v1/auth/logout", authHandler.Logout)

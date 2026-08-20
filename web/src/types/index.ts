@@ -92,6 +92,15 @@ export interface AuthResponse {
   temp_token?: string;
 }
 
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  new_password: string;
+}
+
 export interface TwoFASetupResponse {
   secret: string;
   qr_code_url: string;

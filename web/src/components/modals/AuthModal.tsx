@@ -7,7 +7,9 @@ import {
   ShieldCheck, 
   AlertCircle,
   Eye,
-  EyeOff
+  EyeOff,
+  CheckCircle2,
+  ArrowLeft
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useI18n } from '../../context/LanguageContext';
@@ -24,7 +26,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
   const { login, register, requires2FA, verify2FA, cancel2FA } = useAuth();
   const { t } = useI18n();
 
-  const [tab, setTab] = useState<'login' | 'register'>('login');
+  const [tab, setTab] = useState<'login' | 'register' | 'forgot'>('login');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,6 +35,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Forgot password state
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotSent, setForgotSent] = useState(false);
 
   const [strength, setStrength] = useState<PasswordStrengthResponse | null>(null);
 
@@ -58,6 +64,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
 
   const handleClose = () => {
     setError(null);
+    setForgotSent(false);
     cancel2FA();
     onClose();
   };
@@ -106,6 +113,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     }
   };
 
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      await api.forgotPassword(forgotEmail);
+      setForgotSent(true);
+    } catch (err: any) {
+      setError(err.message || 'Failed to send reset link');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handle2FASubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -116,84 +138,149 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
       handleClose();
       if (onSuccess) onSuccess();
     } catch (err: any) {
-      setError(err.message || '2FA verification failed');
+      setError(err.message || 'Invalid 2FA code');
     } finally {
       setLoading(false);
     }
   };
 
-  const getStrengthColor = (score: number) => {
+  const getStrengthBarColor = (score: number) => {
     switch (score) {
       case 0:
       case 1:
         return 'var(--danger)';
       case 2:
-        return '#fbbf24';
+        return 'var(--warning)';
       case 3:
+        return 'var(--accent)';
       case 4:
         return 'var(--success)';
       default:
-        return 'var(--text-dim)';
+        return 'var(--border)';
     }
   };
 
   const getStrengthText = (score: number) => {
     switch (score) {
-      case 0: return t.strengthVeryWeak;
-      case 1: return t.strengthWeak;
-      case 2: return t.strengthFair;
-      case 3: return t.strengthGood;
-      case 4: return t.strengthStrong;
-      default: return '';
+      case 0:
+        return t.strengthVeryWeak;
+      case 1:
+        return t.strengthWeak;
+      case 2:
+        return t.strengthFair;
+      case 3:
+        return t.strengthGood;
+      case 4:
+        return t.strengthStrong;
+      default:
+        return '';
     }
   };
 
   return (
     <div className="modal-overlay" onClick={handleClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
-        
-        {/* Header */}
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h3 style={{ fontSize: '14.5px', fontWeight: '600' }}>
-            {requires2FA ? t.twoFATitle : tab === 'login' ? t.signInTitle : t.signUpTitle}
-          </h3>
-          <button className="btn btn-ghost btn-icon" onClick={handleClose}>
-            <X size={16} />
-          </button>
-        </div>
-
-        {/* Tab Switcher (Only if not in 2FA mode) */}
-        {!requires2FA && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '10px 18px 0 18px', gap: '8px', borderBottom: '1px solid var(--border)' }}>
+      <div 
+        className="modal-content"
+        onClick={(e) => e.stopPropagation()} 
+        style={{ maxWidth: '380px' }}
+      >
+        {/* Header Tabs */}
+        {!requires2FA && tab !== 'forgot' && (
+          <div style={{
+            display: 'flex',
+            borderBottom: '1px solid var(--border)',
+            background: 'var(--bg-subtle)',
+          }}>
             <button
               type="button"
-              className={`btn ${tab === 'login' ? 'btn-secondary' : 'btn-ghost'}`}
-              style={{ fontSize: '12.5px', padding: '6px 8px', borderBottom: tab === 'login' ? '2px solid var(--text)' : undefined }}
+              className="tab-btn"
+              style={{
+                flex: 1,
+                padding: '12px 16px',
+                border: 'none',
+                background: tab === 'login' ? 'var(--bg-card)' : 'transparent',
+                color: tab === 'login' ? 'var(--text)' : 'var(--text-dim)',
+                borderBottom: tab === 'login' ? '2px solid var(--text)' : '2px solid transparent',
+                fontWeight: tab === 'login' ? '600' : '400',
+                fontSize: '13px',
+                cursor: 'pointer',
+              }}
               onClick={() => {
                 setTab('login');
                 setError(null);
               }}
             >
-              {t.signInButton}
+              {t.signInTitle}
             </button>
             <button
               type="button"
-              className={`btn ${tab === 'register' ? 'btn-secondary' : 'btn-ghost'}`}
-              style={{ fontSize: '12.5px', padding: '6px 8px', borderBottom: tab === 'register' ? '2px solid var(--text)' : undefined }}
+              className="tab-btn"
+              style={{
+                flex: 1,
+                padding: '12px 16px',
+                border: 'none',
+                background: tab === 'register' ? 'var(--bg-card)' : 'transparent',
+                color: tab === 'register' ? 'var(--text)' : 'var(--text-dim)',
+                borderBottom: tab === 'register' ? '2px solid var(--text)' : '2px solid transparent',
+                fontWeight: tab === 'register' ? '600' : '400',
+                fontSize: '13px',
+                cursor: 'pointer',
+              }}
               onClick={() => {
                 setTab('register');
                 setError(null);
               }}
             >
-              {t.signUpButton}
+              {t.signUpTitle}
+            </button>
+            <button 
+              className="btn btn-ghost btn-icon" 
+              onClick={handleClose}
+              style={{ margin: '8px 8px 0 0' }}
+            >
+              <X size={15} />
             </button>
           </div>
         )}
 
-        {/* Content Body */}
+        {/* Header when in 2FA or Forgot mode */}
+        {(requires2FA || tab === 'forgot') && (
+          <div style={{
+            padding: '14px 18px',
+            borderBottom: '1px solid var(--border)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {tab === 'forgot' && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-icon"
+                  style={{ width: '26px', height: '26px' }}
+                  onClick={() => {
+                    setTab('login');
+                    setForgotSent(false);
+                    setError(null);
+                  }}
+                >
+                  <ArrowLeft size={14} />
+                </button>
+              )}
+              <h3 style={{ fontSize: '14.5px', fontWeight: '600' }}>
+                {requires2FA ? t.twoFATitle : t.forgotPasswordTitle}
+              </h3>
+            </div>
+            <button className="btn btn-ghost btn-icon" onClick={handleClose}>
+              <X size={15} />
+            </button>
+          </div>
+        )}
+
+        {/* Modal Body */}
         <div style={{ padding: '18px' }}>
           
-          {/* Error Alert */}
+          {/* Error Message */}
           {error && (
             <div style={{
               display: 'flex',
@@ -257,6 +344,92 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                 </div>
               </div>
             </form>
+          ) : tab === 'forgot' ? (
+
+            /* Forgot Password Form */
+            forgotSent ? (
+              <div style={{ textAlign: 'center', padding: '12px 6px' }}>
+                <div style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '50%',
+                  background: 'var(--badge-note-bg)',
+                  border: '1px solid var(--badge-note-border)',
+                  color: 'var(--success)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 14px auto',
+                }}>
+                  <CheckCircle2 size={24} />
+                </div>
+                <h4 style={{ fontSize: '15px', fontWeight: '600', marginBottom: '8px' }}>
+                  {t.resetLinkSentTitle}
+                </h4>
+                <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', lineHeight: '1.5', marginBottom: '18px' }}>
+                  {t.resetLinkSentDesc}
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ width: '100%' }}
+                  onClick={() => {
+                    setTab('login');
+                    setForgotSent(false);
+                  }}
+                >
+                  {t.backToSignIn}
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgotSubmit}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', lineHeight: '1.4', margin: '0 0 4px 0' }}>
+                    {t.forgotPasswordSubtitle}
+                  </p>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '500', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      {t.email}
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <Mail size={13} color="var(--text-dim)" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                      <input
+                        type="email"
+                        className="input-field"
+                        style={{ paddingLeft: '32px' }}
+                        value={forgotEmail}
+                        onChange={(e) => setForgotEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        required
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    style={{ width: '100%', height: '36px', marginTop: '6px', fontSize: '13px' }}
+                    disabled={loading || !forgotEmail}
+                  >
+                    {loading ? t.sendingResetLink : t.sendResetLink}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ width: '100%', fontSize: '12px' }}
+                    onClick={() => {
+                      setTab('login');
+                      setError(null);
+                    }}
+                  >
+                    {t.backToSignIn}
+                  </button>
+                </div>
+              </form>
+            )
           ) : tab === 'login' ? (
             
             /* Login Form */
@@ -281,9 +454,29 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '500', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                    {t.password}
-                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <label style={{ fontSize: '11.5px', fontWeight: '500', color: 'var(--text-muted)' }}>
+                      {t.password}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTab('forgot');
+                        setError(null);
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--text-dim)',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        padding: 0,
+                        textDecoration: 'underline',
+                      }}
+                    >
+                      {t.forgotPassword}
+                    </button>
+                  </div>
                   <div style={{ position: 'relative' }}>
                     <Lock size={13} color="var(--text-dim)" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
                     <input
@@ -327,7 +520,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
             
             /* Register Form */
             <form onSubmit={handleRegisterSubmit}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '11px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '500', color: 'var(--text-muted)', marginBottom: '4px' }}>
                     {t.username}
@@ -396,23 +589,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                   </div>
 
                   {/* Password Strength Indicator */}
-                  {password && strength && (
+                  {strength && (
                     <div style={{ marginTop: '6px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
-                        <span style={{ fontSize: '10.5px', color: 'var(--text-dim)' }}>{t.strengthLabel}</span>
-                        <span style={{ fontSize: '10.5px', fontWeight: '600', color: getStrengthColor(strength.score) }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px', marginBottom: '3px' }}>
+                        <span style={{ color: 'var(--text-dim)' }}>{t.strengthLabel}</span>
+                        <span style={{ color: getStrengthBarColor(strength.score), fontWeight: '600' }}>
                           {getStrengthText(strength.score)}
                         </span>
                       </div>
-                      <div style={{ height: '3px', width: '100%', background: 'var(--bg-subtle)', borderRadius: '2px', overflow: 'hidden' }}>
-                        <div
-                          style={{
-                            height: '100%',
-                            width: `${((strength.score + 1) / 5) * 100}%`,
-                            background: getStrengthColor(strength.score),
-                            transition: 'width 0.2s ease, background 0.2s ease',
-                          }}
-                        />
+                      <div style={{ display: 'flex', gap: '3px', height: '3px' }}>
+                        {[0, 1, 2, 3].map((idx) => (
+                          <div
+                            key={idx}
+                            style={{
+                              flex: 1,
+                              borderRadius: '2px',
+                              background: idx <= strength.score ? getStrengthBarColor(strength.score) : 'var(--border)',
+                              transition: 'background 0.2s ease',
+                            }}
+                          />
+                        ))}
                       </div>
                     </div>
                   )}
@@ -425,7 +621,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                   <div style={{ position: 'relative' }}>
                     <Lock size={13} color="var(--text-dim)" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
                     <input
-                      type="password"
+                      type={showPassword ? 'text' : 'password'}
                       className="input-field"
                       style={{ paddingLeft: '32px' }}
                       value={confirmPassword}
@@ -446,7 +642,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
               </div>
             </form>
           )}
-
         </div>
       </div>
     </div>

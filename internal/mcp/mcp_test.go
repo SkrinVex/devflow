@@ -39,7 +39,7 @@ func setupTestServer(t *testing.T) (*httptest.Server, string, func()) {
 	totpManager := security.NewTOTPManager("DevFlow")
 	contentDetector := security.NewContentDetector()
 
-	authService := service.NewAuthService(userRepo, jwtManager, totpManager, true)
+	authService := service.NewAuthService(userRepo, jwtManager, totpManager, nil, "http://localhost:1451", true)
 	snippetService := service.NewSnippetService(snippetRepo, contentDetector)
 
 	authRes, err := authService.Register(ctx, domain.RegisterRequest{

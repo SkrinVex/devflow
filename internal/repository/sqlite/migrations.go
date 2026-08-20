@@ -56,6 +56,20 @@ CREATE INDEX IF NOT EXISTS idx_snippets_user_pinned ON snippets(user_id, is_pinn
 CREATE INDEX IF NOT EXISTS idx_snippets_user_type ON snippets(user_id, type);
 CREATE INDEX IF NOT EXISTS idx_tags_user_name ON tags(user_id, name);
 
+-- Password Reset Tokens Table
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL,
+    used_at DATETIME,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_reset_token_hash ON password_reset_tokens(token_hash);
+CREATE INDEX IF NOT EXISTS idx_reset_token_user ON password_reset_tokens(user_id);
+
 -- SQLite FTS5 Full-Text Search Virtual Table
 CREATE VIRTUAL TABLE IF NOT EXISTS snippets_fts USING fts5(
     snippet_id UNINDEXED,

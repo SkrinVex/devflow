@@ -11,6 +11,7 @@ import { SnippetList } from './components/snippets/SnippetList';
 import { Toast } from './components/ui/Toast';
 
 import { AuthModal } from './components/modals/AuthModal';
+import { ResetPasswordModal } from './components/modals/ResetPasswordModal';
 import { TwoFASetupModal } from './components/modals/TwoFASetupModal';
 import { SettingsModal } from './components/modals/SettingsModal';
 import type { SettingsTab } from './components/modals/SettingsModal';
@@ -69,6 +70,10 @@ const MainApp: React.FC = () => {
   const [activePromptRunner, setActivePromptRunner] = useState<Snippet | null>(null);
   const [activeSnippetEdit, setActiveSnippetEdit] = useState<Snippet | null>(null);
 
+  // Password reset token from URL state
+  const [resetToken, setResetToken] = useState<string | null>(null);
+  const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(false);
+
   // Confirm dialog state
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -83,6 +88,23 @@ const MainApp: React.FC = () => {
     description: '',
     onConfirm: () => {},
   });
+
+  // Check URL parameters for password reset token
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('reset_token') || params.get('token');
+      if (token) {
+        setResetToken(token);
+        setIsResetPasswordOpen(true);
+        // Clean URL without reloading page
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
 
   // Initial load
   useEffect(() => {
@@ -283,6 +305,19 @@ const MainApp: React.FC = () => {
           loadSnippets();
           loadTags();
           showToast(t.welcomeBack, 'success');
+        }}
+      />
+
+      <ResetPasswordModal
+        token={resetToken}
+        isOpen={isResetPasswordOpen}
+        onClose={() => {
+          setIsResetPasswordOpen(false);
+          setResetToken(null);
+        }}
+        onSuccess={() => {
+          setIsAuthOpen(true);
+          showToast(t.resetPasswordSuccess, 'success');
         }}
       />
 

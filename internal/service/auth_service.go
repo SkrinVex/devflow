@@ -2,9 +2,15 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"strings"
+	"time"
 
 	"devflow/internal/domain"
+	"devflow/internal/email"
 	"devflow/internal/security"
 
 	"github.com/google/uuid"
@@ -14,6 +20,8 @@ type AuthService struct {
 	userRepo           domain.UserRepository
 	jwtManager         *security.JWTManager
 	totpManager        *security.TOTPManager
+	mailer             email.Mailer
+	appURL             string
 	enableRegistration bool
 }
 
@@ -21,12 +29,16 @@ func NewAuthService(
 	userRepo domain.UserRepository,
 	jwtManager *security.JWTManager,
 	totpManager *security.TOTPManager,
+	mailer email.Mailer,
+	appURL string,
 	enableRegistration bool,
 ) *AuthService {
 	return &AuthService{
 		userRepo:           userRepo,
 		jwtManager:         jwtManager,
 		totpManager:        totpManager,
+		mailer:             mailer,
+		appURL:             appURL,
 		enableRegistration: enableRegistration,
 	}
 }
@@ -274,6 +286,137 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID string, req dom
 	}
 
 	return s.userRepo.UpdatePassword(ctx, userID, hash)
+}
+
+// ForgotPassword initiates a secure password reset request via email.
+// To prevent user enumeration attacks, this method always returns nil on success,
+// even if the provided email does not belong to any registered user.
+func (s *AuthService) ForgotPassword(ctx context.Context, emailAddress string) error {
+	emailAddress = strings.TrimSpace(strings.ToLower(emailAddress))
+	if emailAddress == "" {
+		return domain.ErrInvalidInput
+	}
+
+	user, err := s.userRepo.GetByEmail(ctx, emailAddress)
+	if err != nil {
+		// User does not exist — silently succeed to prevent user enumeration
+		return nil
+	}
+
+	// Generate 32 bytes (256 bits) of cryptographically secure random token
+	tokenBytes := make([]byte, 32)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		return fmt.Errorf("failed to generate secure reset token: %w", err)
+	}
+	rawToken := hex.EncodeToString(tokenBytes)
+
+	// Hash the token with SHA-256 for persistent database storage
+	tokenHashBytes := sha256.Sum256([]byte(rawToken))
+	tokenHash := hex.EncodeToString(tokenHashBytes[:])
+
+	// Invalidate any previous reset tokens for this user
+	_ = s.userRepo.DeleteUserResetTokens(ctx, user.ID)
+
+	// Save reset token with 30 minutes expiration
+	resetToken := &domain.PasswordResetToken{
+		ID:        uuid.New().String(),
+		UserID:    user.ID,
+		TokenHash: tokenHash,
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+		CreatedAt: time.Now(),
+	}
+
+	if err := s.userRepo.CreateResetToken(ctx, resetToken); err != nil {
+		return fmt.Errorf("failed to persist reset token: %w", err)
+	}
+
+	// Build the reset link URL
+	resetLink := fmt.Sprintf("%s/?reset_token=%s", strings.TrimRight(s.appURL, "/"), rawToken)
+
+	// Send email asynchronously so HTTP request doesn't block
+	if s.mailer != nil {
+		go func(toEmail, username, link string) {
+			_ = s.mailer.SendPasswordResetEmail(toEmail, username, link)
+		}(user.Email, user.Username, resetLink)
+	}
+
+	return nil
+}
+
+// ResetPassword validates the reset token and securely sets a new password.
+func (s *AuthService) ResetPassword(ctx context.Context, req domain.ResetPasswordRequest) error {
+	req.Token = strings.TrimSpace(req.Token)
+	if req.Token == "" || req.NewPassword == "" {
+		return domain.ErrInvalidInput
+	}
+
+	// Compute SHA-256 hash of provided token
+	tokenHashBytes := sha256.Sum256([]byte(req.Token))
+	tokenHash := hex.EncodeToString(tokenHashBytes[:])
+
+	resetToken, err := s.userRepo.GetResetTokenByHash(ctx, tokenHash)
+	if err != nil || resetToken == nil || resetToken.UsedAt != nil {
+		return domain.ErrInvalidResetToken
+	}
+
+	if time.Now().After(resetToken.ExpiresAt) {
+		return domain.ErrResetTokenExpired
+	}
+
+	// Validate new password strength
+	strength := security.EvaluatePasswordStrength(req.NewPassword)
+	if !strength.IsValid {
+		return domain.ErrWeakPassword
+	}
+
+	// Hash new password with Argon2id
+	hash, err := security.HashPassword(req.NewPassword)
+	if err != nil {
+		return err
+	}
+
+	// Update user password in database
+	if err := s.userRepo.UpdatePassword(ctx, resetToken.UserID, hash); err != nil {
+		return err
+	}
+
+	// Invalidate token
+	if err := s.userRepo.MarkResetTokenUsed(ctx, resetToken.ID); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// AdminResetPassword immediately resets a user password without requiring email token (CLI fallback).
+func (s *AuthService) AdminResetPassword(ctx context.Context, usernameOrEmail, newPassword string) error {
+	usernameOrEmail = strings.TrimSpace(usernameOrEmail)
+	if usernameOrEmail == "" || newPassword == "" {
+		return domain.ErrInvalidInput
+	}
+
+	var user *domain.User
+	var err error
+	if strings.Contains(usernameOrEmail, "@") {
+		user, err = s.userRepo.GetByEmail(ctx, usernameOrEmail)
+	} else {
+		user, err = s.userRepo.GetByUsername(ctx, usernameOrEmail)
+	}
+	if err != nil {
+		return domain.ErrNotFound
+	}
+
+	strength := security.EvaluatePasswordStrength(newPassword)
+	if !strength.IsValid {
+		return domain.ErrWeakPassword
+	}
+
+	hash, err := security.HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+
+	return s.userRepo.UpdatePassword(ctx, user.ID, hash)
 }
 
 func (s *AuthService) GetProfile(ctx context.Context, userID string) (*domain.UserProfile, error) {

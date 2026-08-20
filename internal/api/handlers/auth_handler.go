@@ -206,6 +206,52 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	RespondSuccess(w, http.StatusOK, "Password changed successfully", nil)
 }
 
+func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
+	var req domain.ForgotPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondError(w, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	if err := h.authService.ForgotPassword(r.Context(), req.Email); err != nil {
+		if errors.Is(err, domain.ErrInvalidInput) {
+			RespondError(w, http.StatusBadRequest, "Invalid email address", err)
+			return
+		}
+		RespondError(w, http.StatusInternalServerError, "Failed to process forgot password request", err)
+		return
+	}
+
+	// Always return generic success message to prevent user enumeration
+	RespondSuccess(w, http.StatusOK, "If an account with this email exists, a password reset link has been sent.", nil)
+}
+
+func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
+	var req domain.ResetPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondError(w, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	if err := h.authService.ResetPassword(r.Context(), req); err != nil {
+		switch {
+		case errors.Is(err, domain.ErrInvalidResetToken):
+			RespondError(w, http.StatusBadRequest, "Invalid or expired password reset link", err)
+		case errors.Is(err, domain.ErrResetTokenExpired):
+			RespondError(w, http.StatusBadRequest, "Password reset link has expired", err)
+		case errors.Is(err, domain.ErrWeakPassword):
+			RespondError(w, http.StatusBadRequest, "Password is too weak", err)
+		case errors.Is(err, domain.ErrInvalidInput):
+			RespondError(w, http.StatusBadRequest, "Missing token or password", err)
+		default:
+			RespondError(w, http.StatusInternalServerError, "Failed to reset password", err)
+		}
+		return
+	}
+
+	RespondSuccess(w, http.StatusOK, "Password reset successfully. You can now sign in with your new password.", nil)
+}
+
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "devflow_token",
@@ -230,3 +276,4 @@ func (h *AuthHandler) setAuthCookie(w http.ResponseWriter, token string) {
 		SameSite: http.SameSiteLaxMode,
 	})
 }
+

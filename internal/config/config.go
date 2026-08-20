@@ -13,16 +13,25 @@ import (
 )
 
 type Config struct {
-	Port               string
-	Host               string
-	DataDir            string
-	DBPath             string
-	JWTSecret          []byte
-	JWTExpiry          time.Duration
-	RateLimitRPS       float64
-	RateLimitBurst     int
-	EnableRegistration bool
-	AppEnv             string
+	Port                   string
+	Host                   string
+	AppURL                 string
+	DataDir                string
+	DBPath                 string
+	JWTSecret              []byte
+	JWTExpiry              time.Duration
+	RateLimitRPS           float64
+	RateLimitBurst         int
+	EnableRegistration     bool
+	AppEnv                 string
+	ResendAPIKey           string
+	EmailFrom              string
+	SMTPHost               string
+	SMTPPort               int
+	SMTPUser               string
+	SMTPPassword           string
+	SMTPFrom               string
+	SMTPInsecureSkipVerify bool
 }
 
 func Load() (*Config, error) {
@@ -117,17 +126,48 @@ func Load() (*Config, error) {
 
 	enableReg := getEnv("ENABLE_REGISTRATION", "true") == "true"
 
+	appURL := getEnv("APP_URL", "")
+	if appURL == "" {
+		if host == "0.0.0.0" || host == "" {
+			appURL = fmt.Sprintf("http://localhost:%s", port)
+		} else {
+			appURL = fmt.Sprintf("http://%s:%s", host, port)
+		}
+	}
+
+	resendAPIKey := getEnv("RESEND_API_KEY", "")
+	emailFrom := getEnv("EMAIL_FROM", "DevFlow <noreply@devflow.app>")
+
+	smtpHost := getEnv("SMTP_HOST", "")
+	smtpPort, _ := strconv.Atoi(getEnv("SMTP_PORT", "587"))
+	if smtpPort <= 0 {
+		smtpPort = 587
+	}
+	smtpUser := getEnv("SMTP_USER", "")
+	smtpPassword := getEnv("SMTP_PASSWORD", "")
+	smtpFrom := getEnv("SMTP_FROM", emailFrom)
+	smtpInsecureSkipVerify := getEnv("SMTP_INSECURE_SKIP_VERIFY", "false") == "true"
+
 	return &Config{
-		Port:               port,
-		Host:               host,
-		DataDir:            dataDir,
-		DBPath:             dbPath,
-		JWTSecret:          jwtSecret,
-		JWTExpiry:          time.Duration(jwtExpiryHours) * time.Hour,
-		RateLimitRPS:       rateLimitRPS,
-		RateLimitBurst:     rateLimitBurst,
-		EnableRegistration: enableReg,
-		AppEnv:             appEnv,
+		Port:                   port,
+		Host:                   host,
+		AppURL:                 appURL,
+		DataDir:                dataDir,
+		DBPath:                 dbPath,
+		JWTSecret:              jwtSecret,
+		JWTExpiry:              time.Duration(jwtExpiryHours) * time.Hour,
+		RateLimitRPS:           rateLimitRPS,
+		RateLimitBurst:         rateLimitBurst,
+		EnableRegistration:     enableReg,
+		AppEnv:                 appEnv,
+		ResendAPIKey:           resendAPIKey,
+		EmailFrom:              emailFrom,
+		SMTPHost:               smtpHost,
+		SMTPPort:               smtpPort,
+		SMTPUser:               smtpUser,
+		SMTPPassword:           smtpPassword,
+		SMTPFrom:               smtpFrom,
+		SMTPInsecureSkipVerify: smtpInsecureSkipVerify,
 	}, nil
 }
 

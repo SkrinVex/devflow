@@ -13,6 +13,10 @@ type UserRepository interface {
 	UpdatePassword(ctx context.Context, userID, newPasswordHash string) error
 	Update2FA(ctx context.Context, userID string, enabled bool, secret string, backupCodes string) error
 	Count(ctx context.Context) (int64, error)
+	CreateResetToken(ctx context.Context, token *PasswordResetToken) error
+	GetResetTokenByHash(ctx context.Context, tokenHash string) (*PasswordResetToken, error)
+	MarkResetTokenUsed(ctx context.Context, id string) error
+	DeleteUserResetTokens(ctx context.Context, userID string) error
 }
 
 type SnippetRepository interface {

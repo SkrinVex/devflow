@@ -15,6 +15,7 @@ import (
 	"devflow/internal/api"
 	"devflow/internal/assets"
 	"devflow/internal/config"
+	"devflow/internal/email"
 	"devflow/internal/mcp"
 	"devflow/internal/repository/sqlite"
 	"devflow/internal/security"
@@ -61,6 +62,51 @@ func main() {
 		return
 	}
 
+	// Subcommand: devflow reset-password --username=<user> --password=<newpass>
+	if len(os.Args) > 1 && os.Args[1] == "reset-password" {
+		cfg, err := config.Load()
+		if err != nil {
+			log.Fatalf("❌ Failed to load configuration: %v", err)
+		}
+
+		db, err := sqlite.New(cfg.DBPath)
+		if err != nil {
+			log.Fatalf("❌ Failed to connect to SQLite: %v", err)
+		}
+		defer db.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		userRepo := sqlite.NewUserRepository(db)
+		jwtManager := security.NewJWTManager(cfg.JWTSecret, cfg.JWTExpiry)
+		totpManager := security.NewTOTPManager("DevFlow")
+		mailer := email.NewMailer(cfg)
+		authService := service.NewAuthService(userRepo, jwtManager, totpManager, mailer, cfg.AppURL, cfg.EnableRegistration)
+
+		var username, newPassword string
+		for i := 2; i < len(os.Args); i++ {
+			arg := os.Args[i]
+			if strings.HasPrefix(arg, "--username=") {
+				username = strings.TrimPrefix(arg, "--username=")
+			} else if strings.HasPrefix(arg, "--password=") {
+				newPassword = strings.TrimPrefix(arg, "--password=")
+			}
+		}
+
+		if username == "" || newPassword == "" {
+			fmt.Println("Usage: devflow reset-password --username=<username_or_email> --password=<new_password>")
+			os.Exit(1)
+		}
+
+		if err := authService.AdminResetPassword(ctx, username, newPassword); err != nil {
+			log.Fatalf("❌ Failed to reset password: %v", err)
+		}
+
+		log.Printf("✅ Password for user '%s' was successfully reset!", username)
+		return
+	}
+
 	fmt.Print(banner)
 
 	// 1. Load configuration
@@ -69,7 +115,7 @@ func main() {
 		log.Fatalf("❌ Failed to load configuration: %v", err)
 	}
 
-	log.Printf("🚀 Starting DevFlow on port :%s (env: %s, data: %s)", cfg.Port, cfg.AppEnv, cfg.DataDir)
+	log.Printf("🚀 Starting DevFlow on port :%s (env: %s, data: %s, app_url: %s)", cfg.Port, cfg.AppEnv, cfg.DataDir, cfg.AppURL)
 
 	// 2. Initialize Database & Migrations
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -90,13 +136,14 @@ func main() {
 	userRepo := sqlite.NewUserRepository(db)
 	snippetRepo := sqlite.NewSnippetRepository(db, cfg.JWTSecret)
 
-	// 4. Initialize Security Managers
+	// 4. Initialize Security Managers & Email Service
 	jwtManager := security.NewJWTManager(cfg.JWTSecret, cfg.JWTExpiry)
 	totpManager := security.NewTOTPManager("DevFlow")
 	contentDetector := security.NewContentDetector()
+	mailer := email.NewMailer(cfg)
 
 	// 5. Initialize Services
-	authService := service.NewAuthService(userRepo, jwtManager, totpManager, cfg.EnableRegistration)
+	authService := service.NewAuthService(userRepo, jwtManager, totpManager, mailer, cfg.AppURL, cfg.EnableRegistration)
 	snippetService := service.NewSnippetService(snippetRepo, contentDetector)
 
 	// 6. Initialize Router & Embedded Assets

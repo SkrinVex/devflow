@@ -136,6 +136,21 @@ export interface Translations {
   reqLower: string;
   reqUpper: string;
   reqNumber: string;
+  forgotPassword: string;
+  forgotPasswordTitle: string;
+  forgotPasswordSubtitle: string;
+  sendResetLink: string;
+  sendingResetLink: string;
+  resetLinkSentTitle: string;
+  resetLinkSentDesc: string;
+  backToSignIn: string;
+  resetPasswordTitle: string;
+  resetPasswordSubtitle: string;
+  newPasswordLabel: string;
+  confirmNewPasswordLabel: string;
+  resetPasswordButton: string;
+  resetPasswordSuccess: string;
+  invalidToken: string;
 
   // 2FA Setup Modal
   twoFASetupTitle: string;
@@ -364,6 +379,21 @@ export const translations: Record<Language, Translations> = {
     reqLower: 'Строчные буквы (a-z)',
     reqUpper: 'Заглавные буквы (A-Z)',
     reqNumber: 'Цифры (0-9)',
+    forgotPassword: 'Забыли пароль?',
+    forgotPasswordTitle: 'Восстановление пароля',
+    forgotPasswordSubtitle: 'Введите ваш email, и мы отправим ссылку для сброса пароля',
+    sendResetLink: 'Отправить ссылку',
+    sendingResetLink: 'Отправка ссылки...',
+    resetLinkSentTitle: 'Письмо отправлено!',
+    resetLinkSentDesc: 'Если аккаунт с таким email существует, на него отправлена ссылка для сброса пароля. Проверьте входящие и папку «Спам».',
+    backToSignIn: 'Вернуться ко входу',
+    resetPasswordTitle: 'Сброс пароля',
+    resetPasswordSubtitle: 'Установите новый надёжный пароль для вашего аккаунта',
+    newPasswordLabel: 'Новый пароль',
+    confirmNewPasswordLabel: 'Повторите новый пароль',
+    resetPasswordButton: 'Сохранить новый пароль',
+    resetPasswordSuccess: 'Пароль успешно изменён! Теперь вы можете войти.',
+    invalidToken: 'Недействительная или устаревшая ссылка сброса',
 
     // 2FA Setup Modal
     twoFASetupTitle: 'Настройка 2FA защиты',
@@ -591,6 +621,21 @@ export const translations: Record<Language, Translations> = {
     reqLower: 'Lowercase letter (a-z)',
     reqUpper: 'Uppercase letter (A-Z)',
     reqNumber: 'Number (0-9)',
+    forgotPassword: 'Forgot password?',
+    forgotPasswordTitle: 'Forgot Password',
+    forgotPasswordSubtitle: 'Enter your email and we will send you a password reset link',
+    sendResetLink: 'Send Reset Link',
+    sendingResetLink: 'Sending link...',
+    resetLinkSentTitle: 'Reset Link Sent!',
+    resetLinkSentDesc: 'If an account with this email exists, a password reset link has been sent. Check your inbox and spam folder.',
+    backToSignIn: 'Back to Sign In',
+    resetPasswordTitle: 'Reset Password',
+    resetPasswordSubtitle: 'Set a new secure password for your account',
+    newPasswordLabel: 'New Password',
+    confirmNewPasswordLabel: 'Confirm New Password',
+    resetPasswordButton: 'Reset Password',
+    resetPasswordSuccess: 'Password reset successfully! You can now sign in.',
+    invalidToken: 'Invalid or expired password reset link',
 
     // 2FA Setup Modal
     twoFASetupTitle: 'Setup 2FA Protection',

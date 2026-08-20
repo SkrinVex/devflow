@@ -235,6 +235,39 @@ go test -v ./...
 
 ---
 
+## 📧 Сброс пароля и настройка почты (Resend / SMTP)
+
+DevFlow поддерживает полноценное восстановление пароля по электронной почте через **Resend API** или **любой SMTP-сервер** (Gmail, Yandex, Mailgun, Postmark).
+
+### Вариант 1: Через Resend API (Рекомендуется)
+1. Зарегистрируйтесь на [resend.com](https://resend.com) и создайте API ключ.
+2. Добавьте переменные окружения:
+```env
+APP_URL=https://devflow.yourdomain.com
+RESEND_API_KEY=re_123456789_abcdefg
+EMAIL_FROM=DevFlow <noreply@yourdomain.com>
+```
+
+### Вариант 2: Через кастомный SMTP (Gmail, Yandex, Postmark и др.)
+```env
+APP_URL=https://devflow.yourdomain.com
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your_email@gmail.com
+SMTP_PASSWORD=your_16_char_app_password
+SMTP_FROM=DevFlow <your_email@gmail.com>
+```
+
+> **⚡ Локальный Dev / Fallback режим:** Если почта не настроена, ссылка для сброса пароля выводится **напрямую в логи сервера** в консоли, поэтому вы гарантированно не потеряете доступ к своему хранилищу!
+
+### 🛠️ Аварийный сброс пароля через CLI (без почты)
+Если вы забыли пароль и находитесь в терминале сервера или консоли контейнера Coolify, вы можете мгновенно сбросить пароль любой учетной записи:
+```bash
+./devflow reset-password --username=lexa --password=NewStrongPassword123!
+```
+
+---
+
 ## ⌨️ Горячие клавиши (Keyboard Shortcuts)
 
 - `Ctrl + Enter` (или `Cmd + Enter` на Mac) — Мгновенно сохранить заметку / сниппет из поля быстрого ввода.
