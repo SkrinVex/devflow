@@ -65,10 +65,15 @@ class ApiService {
     });
   }
 
-  async login(req: { login: string; password: string }): Promise<AuthResponse> {
+  async login(req: { username?: string; login?: string; password: string }): Promise<AuthResponse> {
+    const ident = req.username || req.login || '';
     return this.request<AuthResponse>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify(req),
+      body: JSON.stringify({
+        username: ident,
+        login: ident,
+        password: req.password,
+      }),
     });
   }
 

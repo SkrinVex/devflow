@@ -104,18 +104,21 @@ func (s *AuthService) Register(ctx context.Context, req domain.RegisterRequest) 
 }
 
 func (s *AuthService) Login(ctx context.Context, req domain.LoginRequest) (*domain.AuthResponse, error) {
-	req.Username = strings.TrimSpace(req.Username)
-	if req.Username == "" || req.Password == "" {
+	username := strings.TrimSpace(req.Username)
+	if username == "" {
+		username = strings.TrimSpace(req.Login)
+	}
+	if username == "" || req.Password == "" {
 		return nil, domain.ErrInvalidCredentials
 	}
 
 	// Lookup by username or email
 	var user *domain.User
 	var err error
-	if strings.Contains(req.Username, "@") {
-		user, err = s.userRepo.GetByEmail(ctx, req.Username)
+	if strings.Contains(username, "@") {
+		user, err = s.userRepo.GetByEmail(ctx, username)
 	} else {
-		user, err = s.userRepo.GetByUsername(ctx, req.Username)
+		user, err = s.userRepo.GetByUsername(ctx, username)
 	}
 	if err != nil {
 		return nil, domain.ErrInvalidCredentials

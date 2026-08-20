@@ -42,6 +42,7 @@ type RegisterRequest struct {
 
 type LoginRequest struct {
 	Username string `json:"username"`
+	Login    string `json:"login,omitempty"`
 	Password string `json:"password"`
 	Code2FA  string `json:"code_2fa,omitempty"`
 }
